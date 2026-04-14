@@ -1,0 +1,32 @@
+# Jetson Tier A — onboard real-time (≥3 Hz), primary deploy profile.
+# Load by passing this file to semantic_nav.launch.py's `detector_params` /
+# `grounding_params` args (the shared keys are overlayed).
+
+go2_open_vocab_detector:
+  ros__parameters:
+    detector_backend: yolo_world_v2_s
+    segmenter_backend: nano_sam
+    encoder_backend: mobileclip_s2
+    device: cuda:0
+    detection_rate_hz: 3.0
+    conf_threshold: 0.25
+    max_objects_per_frame: 20
+    mask_downsample: 2
+
+go2_scene_graph:
+  ros__parameters:
+    publish_rate_hz: 2.0
+    assoc_max_dist_m: 0.5
+    object_ttl_s: 60.0
+    min_observations_to_publish: 3
+
+go2_language_grounding:
+  ros__parameters:
+    encoder_backend: mobileclip_s2
+    device: cuda:0
+    stand_off_m: 0.9
+    goal_ring_samples: 12
+    reject_absolute_floor: 0.15
+    reject_label_floor: 0.40
+    reject_clip_floor: 0.22
+    reject_margin_min: 0.05

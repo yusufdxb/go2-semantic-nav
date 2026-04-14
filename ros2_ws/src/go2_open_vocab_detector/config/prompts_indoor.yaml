@@ -1,0 +1,63 @@
+# Default open-vocabulary prompt set for indoor scenes.
+# Load via: `ros2 param load /go2_open_vocab_detector prompts_indoor.yaml`
+# Or pass as `prompt_classes_file:=...` to the launch file.
+prompts:
+  - chair
+  - armchair
+  - sofa
+  - couch
+  - stool
+  - bench
+  - bar stool
+  - table
+  - coffee table
+  - dining table
+  - desk
+  - kitchen counter
+  - kitchen island
+  - refrigerator
+  - sink
+  - oven
+  - microwave
+  - window
+  - curtain
+  - blinds
+  - door
+  - doorway
+  - bed
+  - mattress
+  - nightstand
+  - wardrobe
+  - closet
+  - bookshelf
+  - bookcase
+  - shelf
+  - television
+  - monitor
+  - laptop
+  - keyboard
+  - mouse
+  - lamp
+  - floor lamp
+  - ceiling light
+  - rug
+  - carpet
+  - plant
+  - potted plant
+  - vase
+  - picture frame
+  - mirror
+  - whiteboard
+  - trash can
+  - backpack
+  - handbag
+  - box
+  - suitcase
+  - cup
+  - mug
+  - bottle
+  - water bottle
+  - person
+  - child
+  - dog
+  - cat

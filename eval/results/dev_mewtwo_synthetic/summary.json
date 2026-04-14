@@ -1,0 +1,13 @@
+{
+  "n_total": 20,
+  "grounding_top1": 0.0,
+  "grounding_top5": 0.0,
+  "expected_failure_honesty": 0.0,
+  "navigation_success_rate": 0.0,
+  "spl": 0.0,
+  "latency_ms_p50": 7.534265518188477,
+  "latency_ms_p95": 12.009143829345703,
+  "config_name": "dev_mewtwo_synthetic",
+  "mode": "synthetic",
+  "n_queries": 20
+}

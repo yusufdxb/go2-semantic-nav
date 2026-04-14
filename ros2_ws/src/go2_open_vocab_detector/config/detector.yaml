@@ -1,0 +1,47 @@
+go2_open_vocab_detector:
+  ros__parameters:
+    # Backends — see docs/architecture.md §Model backends for the full list.
+    detector_backend: yolo_world_v2_s
+    segmenter_backend: mobile_sam
+    encoder_backend: openclip_vit_b16
+
+    # Compute
+    device: cuda:0
+    detection_rate_hz: 5.0
+    conf_threshold: 0.25
+    max_objects_per_frame: 30
+
+    # Depth / back-projection
+    min_depth_m: 0.2
+    max_depth_m: 8.0
+
+    # Subscriptions
+    image_topic: /camera/color/image_raw
+    depth_topic: /camera/depth/image_rect_raw
+    camera_info_topic: /camera/color/camera_info
+    sync_slop_sec: 0.05
+
+    # Mask post-processing
+    mask_downsample: 1
+
+    # Open-vocabulary prompt list
+    prompts:
+      - chair
+      - sofa
+      - table
+      - desk
+      - window
+      - door
+      - person
+      - refrigerator
+      - television
+      - bed
+      - lamp
+      - potted plant
+      - bookshelf
+      - cup
+      - laptop
+      - backpack
+
+    # Soft lifecycle
+    active: true

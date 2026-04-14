@@ -1,0 +1,29 @@
+go2_language_grounding:
+  ros__parameters:
+    # Frames and topics
+    map_frame: map
+    scene_graph_topic: /semantic/scene_graph
+    costmap_topic: /global_costmap/costmap
+    goal_pose_topic: /goal_pose
+    grounding_viz_topic: /semantic/grounding_viz
+
+    # Encoder (must match detector's embedding dim for CLIP cosine to be meaningful)
+    encoder_backend: openclip_vit_b16
+    device: cuda:0
+
+    # Score weights
+    score_weight_clip: 0.7
+    score_weight_label: 0.2
+    score_weight_spatial: 0.1
+
+    # Goal sampling
+    stand_off_m: 0.9
+    goal_ring_samples: 12
+    goal_min_stand_off_m: 0.4
+    goal_max_stand_off_m: 2.0
+    costmap_free_max_cost: 50
+    retry_with_wider_ring: true
+
+    use_costmap_gate: true
+    min_scene_graph_objects: 1
+    max_action_duration_s: 60.0

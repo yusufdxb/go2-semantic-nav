@@ -1,0 +1,28 @@
+# Jetson Tier B — burst mode, ≤1 Hz.
+# Use for stationary room scans where recall beats rate.
+
+go2_open_vocab_detector:
+  ros__parameters:
+    detector_backend: owlv2_base
+    segmenter_backend: sam2_tiny
+    encoder_backend: mobileclip_s2
+    device: cuda:0
+    detection_rate_hz: 1.0
+    conf_threshold: 0.15
+    max_objects_per_frame: 40
+
+go2_scene_graph:
+  ros__parameters:
+    publish_rate_hz: 1.0
+    assoc_max_dist_m: 0.7
+    object_ttl_s: 120.0
+    min_observations_to_publish: 2
+
+go2_language_grounding:
+  ros__parameters:
+    encoder_backend: mobileclip_s2
+    device: cuda:0
+    reject_absolute_floor: 0.12
+    reject_label_floor: 0.30
+    reject_clip_floor: 0.20
+    reject_margin_min: 0.03

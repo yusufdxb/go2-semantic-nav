@@ -1,0 +1,30 @@
+# End-to-end grounding + navigation action. Client sends a natural-language target,
+# the server grounds it against the current scene graph, computes a reachable
+# stand-off pose, optionally publishes /goal_pose to Nav2, and tracks the navigation
+# to completion (or surfaces a dry-run goal without navigating).
+
+# --- Goal ---
+string text_query                  # e.g., "go stand next to the red chair"
+float32 stand_off_m                # desired final distance from the target object (default 0.9)
+float32 timeout_seconds            # overall action timeout (default 60.0)
+bool dry_run                       # if true, compute and return goal pose without publishing /goal_pose
+int32 top_k                        # candidates to consider (default 5)
+string preferred_relation          # optional override: "near" | "left_of" | ...; "" for auto-parse
+---
+# --- Result ---
+bool success
+string message
+geometry_msgs/PoseStamped final_goal    # in map frame; valid iff success or !dry_run stopped mid-nav
+string chosen_object_id
+string chosen_object_label
+float32 grounding_score
+string terminal_state              # "REACHED" | "NAV_ABORTED" | "GROUNDING_FAILED" | "COSTMAP_UNREACHABLE" | "TIMEOUT"
+float32 total_latency_s
+---
+# --- Feedback ---
+string state                       # "PARSING" | "SCORING" | "SAMPLING_GOAL" | "NAVIGATING" | "REACHED"
+float32 grounding_confidence       # best candidate score seen so far
+int32 scene_graph_object_count
+string current_target_id           # may change during NAVIGATING if re-grounding is enabled
+go2_semantic_msgs/GroundingCandidate[] current_candidates
+float32 distance_to_goal_m         # -1.0 if not yet sampled

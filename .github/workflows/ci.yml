@@ -1,0 +1,102 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-lint:
+    runs-on: ubuntu-22.04
+    container:
+      image: ros:humble
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: System deps
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            python3-pip \
+            ros-humble-cv-bridge \
+            ros-humble-vision-msgs \
+            ros-humble-tf2-ros \
+            ros-humble-tf2-geometry-msgs \
+            ros-humble-nav2-msgs \
+            python3-colcon-common-extensions
+          python3 -m pip install --upgrade pip
+          pip install "numpy<2.0" pyyaml ruff black pytest
+
+      - name: Ruff lint
+        run: |
+          ruff check ros2_ws/src eval scripts
+
+      - name: Colcon build (messages + scene_graph — fast path, no ML deps)
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          cd ros2_ws
+          colcon build --packages-up-to go2_scene_graph --symlink-install
+          colcon build --packages-select go2_semantic_bringup --symlink-install
+
+      - name: Unit tests (pure-Python modules, no rclpy init)
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          source ros2_ws/install/setup.bash
+          cd ros2_ws/src/go2_open_vocab_detector && PYTHONPATH=. python3 -c "
+          import numpy as np
+          from go2_open_vocab_detector.depth_backproject import (
+              CameraIntrinsics, backproject_pixel, masked_depth_median, object_centroid_3d,
+              mask_rle_encode, mask_rle_decode,
+          )
+          intr = CameraIntrinsics(fx=600.0, fy=600.0, cx=320.0, cy=240.0, width=640, height=480)
+          assert np.allclose(backproject_pixel(intr.cx, intr.cy, 1.5, intr), [0,0,1.5])
+          rng = np.random.default_rng(0)
+          for _ in range(20):
+              h, w = int(rng.integers(3, 50)), int(rng.integers(3, 50))
+              m = rng.integers(0, 2, size=(h,w)).astype(bool)
+              assert np.array_equal(mask_rle_decode(mask_rle_encode(m), h, w), m)
+          print('depth_backproject OK')
+          "
+          cd ../go2_scene_graph && PYTHONPATH=. python3 -c "
+          import numpy as np
+          from go2_scene_graph.graph_store import SceneGraphStore, AssociationParams
+          s = SceneGraphStore(AssociationParams(assoc_max_dist_m=2.0, pose_ema_alpha=0.4))
+          e = np.array([1.,0,0], dtype=np.float32)
+          s.ingest('chair', 0.9, np.array([0.,0,0]), np.array([.4,.4,1.]), e, 2., 1)
+          oid, _ = s.ingest('chair', 0.9, np.array([1.,0,0]), np.array([.4,.4,1.]), e, 2., 2)
+          assert abs(s.get(oid).position_map[0] - 0.4) < 1e-5
+          print('graph_store OK')
+          "
+          cd ../go2_language_grounding && PYTHONPATH=. python3 -c "
+          from go2_language_grounding.query_parser import parse
+          cases = {
+              'chair': ('chair', None),
+              'go near the window': ('window', 'near'),
+              'the table next to the couch': ('table', 'near'),
+              'the red chair': ('chair', None),
+              'the blue cup in front of the wooden table': ('cup', 'in_front_of'),
+              'the lamp above the table': ('lamp', 'above'),
+              'the cup on the desk': ('cup', 'on'),
+          }
+          for q, (target, rel) in cases.items():
+              p = parse(q); assert p.target_noun == target and p.relation == rel, p
+          print('query_parser OK (7/7)')
+          "
+          # Grounding-gate unit tests via importlib (the 'test' dir name conflicts with stdlib)
+          cd test && PYTHONPATH=.. python3 -c "
+          import importlib.util, sys
+          spec = importlib.util.spec_from_file_location('grounding_gate_tests', 'test_grounding_gates.py')
+          tg = importlib.util.module_from_spec(spec)
+          sys.modules['grounding_gate_tests'] = tg
+          spec.loader.exec_module(tg)
+          count = 0
+          for name in dir(tg):
+              if name.startswith('test_'):
+                  getattr(tg, name)(); count += 1
+          print(f'grounding_gates OK ({count}/{count})')
+          "

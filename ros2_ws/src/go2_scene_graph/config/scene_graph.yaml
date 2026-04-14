@@ -1,0 +1,32 @@
+go2_scene_graph:
+  ros__parameters:
+    # Frames
+    map_frame: map
+    base_link_frame: base_link
+
+    # Topics
+    detections_topic: /semantic/detections
+    scene_graph_topic: /semantic/scene_graph
+    object_markers_topic: /semantic/object_markers
+
+    # Publication cadence
+    publish_rate_hz: 2.0
+    tf_lookup_timeout_s: 0.1
+    use_precomputed_map_centroid: true
+
+    # Association
+    assoc_max_dist_m: 0.5
+    assoc_embed_threshold: 0.80
+    pose_ema_alpha: 0.4
+    dims_ema_alpha: 0.2
+    embed_ema_alpha: 0.2
+    object_ttl_s: 45.0
+    min_observations_to_publish: 3
+    merge_on_label_match_bonus: 0.05
+
+    # Spatial relations
+    near_threshold_m: 1.2
+    lateral_cone_deg: 35.0
+    vertical_threshold_m: 0.15
+    on_vertical_slack_m: 0.10
+    max_edges: 200
