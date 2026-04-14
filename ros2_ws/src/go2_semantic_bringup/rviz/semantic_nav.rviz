@@ -1,0 +1,87 @@
+Panels:
+  - Class: rviz_common/Displays
+    Help Height: 0
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Color: 160; 160; 164
+      Enabled: true
+      Name: Grid
+      Reference Frame: map
+      Plane: XY
+      Plane Cell Count: 20
+      Cell Size: 0.5
+    - Class: rviz_default_plugins/TF
+      Enabled: true
+      Name: TF
+      Frame Timeout: 15
+      Frames:
+        All Enabled: true
+    - Class: rviz_default_plugins/Image
+      Enabled: true
+      Name: CameraColor
+      Topic:
+        Depth: 1
+        Reliability Policy: Best Effort
+        Value: /camera/color/image_raw
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: SemanticObjects
+      Topic:
+        Depth: 5
+        Reliability Policy: Reliable
+        Value: /semantic/object_markers
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: GroundingViz
+      Topic:
+        Depth: 5
+        Reliability Policy: Reliable
+        Value: /semantic/grounding_viz
+    - Class: rviz_default_plugins/Map
+      Enabled: true
+      Name: GlobalCostmap
+      Topic:
+        Depth: 1
+        Reliability Policy: Reliable
+        Value: /global_costmap/costmap
+      Color Scheme: costmap
+    - Class: rviz_default_plugins/Pose
+      Enabled: true
+      Name: GoalPose
+      Color: 0; 255; 0
+      Shaft Length: 0.3
+      Head Length: 0.1
+      Topic:
+        Depth: 10
+        Reliability Policy: Reliable
+        Value: /goal_pose
+  Global Options:
+    Background Color: 40; 42; 54
+    Fixed Frame: map
+    Frame Rate: 30
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 6.0
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      Name: Current View
+      Near Clip Distance: 0.01
+      Pitch: 0.7854
+      Yaw: 2.356
+Window Geometry:
+  Height: 960
+  Width: 1280

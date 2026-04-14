@@ -1,0 +1,21 @@
+query_id,query,scene,expected_label,success,chosen_label,top5_labels,grounding_score,grounding_latency_ms,reached,path_length_m,shortest_path_m,final_distance_m
+q01,chair,office_a,chair,True,person,,0.15778110921382904,12.83407211303711,False,0.0,0.0,inf
+q02,the sofa,office_a,sofa,True,person,,0.15058112144470215,7.637262344360352,False,0.0,0.0,inf
+q03,go to the table,office_a,table,False,,,0.0,8.577346801757812,False,0.0,0.0,inf
+q04,the red chair,office_a,chair,True,person,,0.1823311746120453,8.130550384521484,False,0.0,0.0,inf
+q05,the blue backpack,office_a,backpack,True,person,,0.1899614930152893,11.978864669799805,False,0.0,0.0,inf
+q06,the wooden dining table,living_room_c,table,True,person,,0.21752646565437317,11.464834213256836,False,0.0,0.0,inf
+q07,go near the window,office_a,window,True,person,,0.18278783559799194,7.219791412353516,False,0.0,0.0,inf
+q08,go stand next to the television,living_room_c,television,True,person,,0.19625882804393768,8.090972900390625,False,0.0,0.0,inf
+q09,in front of the sofa,living_room_c,sofa,True,person,,0.15058112144470215,3.2761096954345703,False,0.0,0.0,inf
+q10,the chair next to the desk,office_a,chair,True,person,,0.2077811062335968,6.829261779785156,False,0.0,0.0,inf
+q11,the table beside the couch,living_room_c,table,False,,,0.0,7.534265518188477,False,0.0,0.0,inf
+q12,the lamp on the table,living_room_c,lamp,False,,,0.0,7.476568222045898,False,0.0,0.0,inf
+q13,the laptop on the desk,office_a,laptop,True,person,,0.1707734316587448,7.423877716064453,False,0.0,0.0,inf
+q14,the trash can to the left of the door,office_a,trash can,False,,,0.0,10.558366775512695,False,0.0,0.0,inf
+q15,approach the guitar,office_a,,True,person,,0.17879752814769745,6.746768951416016,False,0.0,0.0,inf
+q16,near the candlestick,living_room_c,,True,person,,0.18799550831317902,7.365226745605469,False,0.0,0.0,inf
+q17,the chair,office_a,chair,True,person,,0.15778110921382904,3.1986236572265625,False,0.0,0.0,inf
+q18,the lamp,living_room_c,lamp,True,person,,0.16417904198169708,3.2143592834472656,False,0.0,0.0,inf
+q19,the picture on the wall stand off 0.3m,office_a,picture frame,True,person,,0.20552603900432587,12.009143829345703,False,0.0,0.0,inf
+q20,the dog,living_room_c,,True,person,,0.2178787887096405,8.065462112426758,False,0.0,0.0,inf

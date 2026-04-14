@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>go2_language_grounding</name>
+  <version>0.1.0</version>
+  <description>Language-grounding action server: parses natural-language queries, scores them against the current scene graph, samples a reachable stand-off goal, and publishes to /goal_pose.</description>
+  <maintainer email="yusuf@example.com">Yusuf Guenena</maintainer>
+  <license>MIT</license>
+
+  <depend>rclpy</depend>
+  <depend>rclpy_action</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>go2_semantic_msgs</depend>
+  <depend>go2_open_vocab_detector</depend>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

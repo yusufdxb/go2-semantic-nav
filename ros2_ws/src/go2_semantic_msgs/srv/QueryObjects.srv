@@ -1,0 +1,23 @@
+# Query the current scene graph with a natural-language description and
+# receive the top-k most-likely objects. Does not publish a navigation goal.
+
+# --- Request ---
+string text_query                  # free-form natural language ("the red chair")
+int32 top_k                        # how many ranked candidates to return (default 5)
+bool include_embeddings            # if true, response candidates carry their SemanticObject.embedding
+---
+# --- Response ---
+bool success
+string message                     # human-readable reason when !success
+go2_semantic_msgs/GroundingCandidate[] candidates
+
+# Parsed components of the query (for transparency and debugging).
+string parsed_target_noun
+string parsed_attribute
+string parsed_relation             # "" if no relation was extracted
+string parsed_reference_noun       # "" if no reference was extracted
+
+# Timing.
+float32 parse_latency_ms
+float32 score_latency_ms
+float32 total_latency_ms

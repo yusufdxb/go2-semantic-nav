@@ -1,0 +1,28 @@
+# Offboard Tier C — RTX 5070 laptop running the heavy stack; robot receives
+# detections over DDS on 192.168.123.x. Use when the robot's Jetson is saturated.
+
+go2_open_vocab_detector:
+  ros__parameters:
+    detector_backend: grounding_dino_tiny
+    segmenter_backend: sam2_base_plus
+    encoder_backend: openclip_vit_h14
+    device: cuda:0
+    detection_rate_hz: 3.0
+    conf_threshold: 0.15
+    max_objects_per_frame: 50
+
+go2_scene_graph:
+  ros__parameters:
+    publish_rate_hz: 2.0
+    assoc_embed_threshold: 0.75
+    object_ttl_s: 30.0
+    min_observations_to_publish: 2
+
+go2_language_grounding:
+  ros__parameters:
+    encoder_backend: openclip_vit_h14
+    device: cuda:0
+    reject_absolute_floor: 0.18
+    reject_label_floor: 0.45
+    reject_clip_floor: 0.25
+    reject_margin_min: 0.05

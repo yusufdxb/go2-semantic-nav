@@ -1,0 +1,21 @@
+query_id,query,scene,expected_label,success,chosen_label,top5_labels,grounding_score,grounding_latency_ms,reached,path_length_m,shortest_path_m,final_distance_m
+q01,chair,office_a,chair,False,,,0.0,21.863222122192383,False,0.0,0.0,inf
+q02,the sofa,office_a,sofa,False,,,0.0,6.9599151611328125,False,0.0,0.0,inf
+q03,go to the table,office_a,table,False,,,0.0,6.777286529541016,False,0.0,0.0,inf
+q04,the red chair,office_a,chair,False,,,0.0,6.793022155761719,False,0.0,0.0,inf
+q05,the blue backpack,office_a,backpack,False,,,0.0,10.801315307617188,False,0.0,0.0,inf
+q06,the wooden dining table,living_room_c,table,True,person,,0.21752546727657318,11.629581451416016,False,0.0,0.0,inf
+q07,go near the window,office_a,window,False,,,0.0,7.625341415405273,False,0.0,0.0,inf
+q08,go stand next to the television,living_room_c,television,False,,,0.0,12.133121490478516,False,0.0,0.0,inf
+q09,in front of the sofa,living_room_c,sofa,False,,,0.0,3.1778812408447266,False,0.0,0.0,inf
+q10,the chair next to the desk,office_a,chair,False,,,0.0,10.363101959228516,False,0.0,0.0,inf
+q11,the table beside the couch,living_room_c,table,False,,,0.0,16.288042068481445,False,0.0,0.0,inf
+q12,the lamp on the table,living_room_c,lamp,False,,,0.0,7.837772369384766,False,0.0,0.0,inf
+q13,the laptop on the desk,office_a,laptop,False,,,0.0,7.292747497558594,False,0.0,0.0,inf
+q14,the trash can to the left of the door,office_a,trash can,False,,,0.0,12.021303176879883,False,0.0,0.0,inf
+q15,approach the guitar,office_a,,False,,,0.0,7.50279426574707,False,0.0,0.0,inf
+q16,near the candlestick,living_room_c,,False,,,0.0,8.915901184082031,False,0.0,0.0,inf
+q17,the chair,office_a,chair,False,,,0.0,2.847909927368164,False,0.0,0.0,inf
+q18,the lamp,living_room_c,lamp,False,,,0.0,3.0188560485839844,False,0.0,0.0,inf
+q19,the picture on the wall stand off 0.3m,office_a,picture frame,True,person,,0.2055278867483139,21.309614181518555,False,0.0,0.0,inf
+q20,the dog,living_room_c,,True,person,,0.21788020431995392,9.858131408691406,False,0.0,0.0,inf

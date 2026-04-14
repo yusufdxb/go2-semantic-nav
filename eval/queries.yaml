@@ -1,0 +1,168 @@
+# Language-grounding evaluation query set.
+#
+# Each entry:
+#   id          : stable identifier, referenced in results CSVs
+#   scene       : which rosbag/scene the query targets
+#   query       : the natural-language input handed to /semantic/ground_and_navigate
+#   expected_label : the ground-truth SemanticObject label that should be chosen
+#   expected_attribute : optional, for attribute-disambiguation checks ("red", "wooden", ...)
+#   relation    : optional relation when the query expresses one
+#   difficulty  : easy | medium | hard
+#   notes       : free text (why this query is interesting)
+
+queries:
+  # --- direct noun (easy) ---
+  - id: q01
+    scene: office_a
+    query: "chair"
+    expected_label: chair
+    difficulty: easy
+
+  - id: q02
+    scene: office_a
+    query: "the sofa"
+    expected_label: sofa
+    difficulty: easy
+
+  - id: q03
+    scene: office_a
+    query: "go to the table"
+    expected_label: table
+    difficulty: easy
+
+  # --- attribute disambiguation (medium) ---
+  - id: q04
+    scene: office_a
+    query: "the red chair"
+    expected_label: chair
+    expected_attribute: red
+    difficulty: medium
+    notes: requires CLIP attribute scoring — two chairs in this scene
+
+  - id: q05
+    scene: office_a
+    query: "the blue backpack"
+    expected_label: backpack
+    expected_attribute: blue
+    difficulty: medium
+
+  - id: q06
+    scene: living_room_c
+    query: "the wooden dining table"
+    expected_label: table
+    expected_attribute: wooden
+    difficulty: medium
+
+  # --- unary relations (medium) ---
+  - id: q07
+    scene: office_a
+    query: "go near the window"
+    expected_label: window
+    relation: near
+    difficulty: medium
+
+  - id: q08
+    scene: living_room_c
+    query: "go stand next to the television"
+    expected_label: television
+    relation: near
+    difficulty: medium
+
+  - id: q09
+    scene: living_room_c
+    query: "in front of the sofa"
+    expected_label: sofa
+    relation: in_front_of
+    difficulty: medium
+
+  # --- binary relations (hard) ---
+  - id: q10
+    scene: office_a
+    query: "the chair next to the desk"
+    expected_label: chair
+    relation: near
+    difficulty: hard
+    notes: requires finding a chair close to a desk among multiple chairs
+
+  - id: q11
+    scene: living_room_c
+    query: "the table beside the couch"
+    expected_label: table
+    relation: near
+    difficulty: hard
+
+  - id: q12
+    scene: living_room_c
+    query: "the lamp on the table"
+    expected_label: lamp
+    relation: on
+    difficulty: hard
+
+  - id: q13
+    scene: office_a
+    query: "the laptop on the desk"
+    expected_label: laptop
+    relation: on
+    difficulty: hard
+
+  # --- deictic / view-dependent (hard) ---
+  - id: q14
+    scene: office_a
+    query: "the trash can to the left of the door"
+    expected_label: trash can
+    relation: left_of
+    difficulty: hard
+
+  # --- out-of-prompt-set (expected failure) ---
+  - id: q15
+    scene: office_a
+    query: "approach the guitar"
+    expected_label: null
+    difficulty: hard
+    notes: guitar is not in the default prompt set — expect success=false, not a wrong goal
+
+  - id: q16
+    scene: living_room_c
+    query: "near the candlestick"
+    expected_label: null
+    difficulty: hard
+
+  # --- near-miss distractor (hard) ---
+  - id: q17
+    scene: office_a
+    query: "the chair"
+    expected_label: chair
+    difficulty: hard
+    notes: multiple chairs — any chair is correct; measures top-5 inclusion of all
+
+  - id: q18
+    scene: living_room_c
+    query: "the lamp"
+    expected_label: lamp
+    difficulty: medium
+
+  # --- failure-mode (reachability) ---
+  - id: q19
+    scene: office_a
+    query: "the picture on the wall stand off 0.3m"
+    expected_label: picture frame
+    difficulty: hard
+    notes: wall-mounted — stand-off ring likely collides with the wall, expect COSTMAP_UNREACHABLE
+
+  - id: q20
+    scene: living_room_c
+    query: "the dog"
+    expected_label: null
+    difficulty: hard
+    notes: moving object; reacquire behavior
+
+scenes:
+  office_a:
+    bag: tests/bags/office_a.bag
+    description: mewtwo office, 15 m², mixed clutter, two chairs, one desk
+  lab_b:
+    bag: tests/bags/lab_b.bag
+    description: lab common area, 40 m², sofa, coffee table, TV
+  living_room_c:
+    bag: tests/bags/living_room_c.bag
+    description: held-out apartment living room, 25 m², sofa, coffee table, window

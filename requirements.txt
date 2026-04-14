@@ -1,0 +1,27 @@
+# Core ML stack (dev — mewtwo RTX 5070, torch 2.11+cu128)
+# These are pinned for dev on mewtwo; Jetson wheels are installed separately via JetPack.
+ultralytics>=8.4.0,<9.0.0        # YOLO-World v2, YOLOE (AGPL-3.0)
+open_clip_torch>=2.24.0          # CLIP image + text encoders (MIT)
+mobile-sam>=0.1.0 ; platform_system == "Linux"  # MobileSAM (Apache-2.0) — dev only
+transformers>=4.45.0             # SigLIP / MobileCLIP loaders
+sentencepiece>=0.2.0             # SigLIP tokenizer (build from source on JP6)
+onnx>=1.17.0
+onnxruntime-gpu>=1.20.0 ; platform_machine != "aarch64"
+
+# 3D and scene graph ops
+open3d>=0.18.0                   # point clouds, voxels, meshes
+networkx>=3.2                    # scene graph structure
+scipy>=1.11.0
+numpy>=1.24.0,<2.0               # pinned <2 for cv_bridge compat (matches seeing-eye-dog)
+
+# Misc
+opencv-python>=4.8.0
+pyyaml>=6.0
+pillow>=10.0
+tqdm>=4.66
+
+# Testing & dev
+pytest>=7.4.0
+pytest-cov>=4.1.0
+ruff>=0.5.0
+black>=24.0.0

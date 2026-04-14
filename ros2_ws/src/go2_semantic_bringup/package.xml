@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>go2_semantic_bringup</name>
+  <version>0.1.0</version>
+  <description>Top-level launch orchestration and RViz presets for the go2-semantic-nav overlay.</description>
+  <maintainer email="yusuf@example.com">Yusuf Guenena</maintainer>
+  <license>MIT</license>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>go2_semantic_msgs</exec_depend>
+  <exec_depend>go2_open_vocab_detector</exec_depend>
+  <exec_depend>go2_scene_graph</exec_depend>
+  <exec_depend>go2_language_grounding</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

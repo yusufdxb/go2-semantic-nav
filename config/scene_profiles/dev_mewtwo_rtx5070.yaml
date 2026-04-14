@@ -1,0 +1,27 @@
+# Dev profile for mewtwo (RTX 5070). Use the largest models we can afford at ~5 Hz.
+
+go2_open_vocab_detector:
+  ros__parameters:
+    detector_backend: yolo_world_v2_s
+    segmenter_backend: mobile_sam
+    encoder_backend: openclip_vit_b16
+    device: cuda:0
+    detection_rate_hz: 5.0
+    conf_threshold: 0.25
+    max_objects_per_frame: 30
+
+go2_scene_graph:
+  ros__parameters:
+    publish_rate_hz: 2.0
+    assoc_embed_threshold: 0.80
+    object_ttl_s: 45.0
+    min_observations_to_publish: 3
+
+go2_language_grounding:
+  ros__parameters:
+    encoder_backend: openclip_vit_b16
+    device: cuda:0
+    reject_absolute_floor: 0.15
+    reject_label_floor: 0.40
+    reject_clip_floor: 0.22
+    reject_margin_min: 0.0
