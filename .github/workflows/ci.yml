@@ -40,7 +40,6 @@ jobs:
           source /opt/ros/humble/setup.bash
           cd ros2_ws
           colcon build --packages-up-to go2_scene_graph --symlink-install
-          colcon build --packages-select go2_semantic_bringup --symlink-install
 
       - name: Unit tests (pure-Python modules, no rclpy init)
         shell: bash
