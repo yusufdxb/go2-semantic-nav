@@ -5,9 +5,8 @@ from __future__ import annotations
 import math
 
 import numpy as np
-from nav_msgs.msg import OccupancyGrid
-
 from go2_language_grounding.goal_sampler import SamplerParams, sample_stand_off
+from nav_msgs.msg import OccupancyGrid
 
 
 def _empty_costmap(width: int = 200, height: int = 200, res: float = 0.05,

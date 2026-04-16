@@ -2,7 +2,6 @@
 
 import numpy as np
 import pytest
-
 from go2_language_grounding.scoring import (
     ScoreWeights,
     combine,

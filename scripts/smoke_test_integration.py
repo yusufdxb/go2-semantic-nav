@@ -26,13 +26,11 @@ from pathlib import Path
 from typing import Optional
 
 import rclpy
-from action_msgs.msg import GoalStatus
-from rclpy.action import ActionClient
-from rclpy.executors import MultiThreadedExecutor, SingleThreadedExecutor
-from rclpy.node import Node
-
 from go2_semantic_msgs.action import GroundAndNavigate
 from go2_semantic_msgs.msg import SceneGraph
+from rclpy.action import ActionClient
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.node import Node
 
 
 class SceneGraphWatcher(Node):
@@ -123,10 +121,10 @@ def main() -> int:
 
         # 2. Construct the three semantic-nav nodes in-process.
         print("[smoke] loading detector (this will pull weights on first run) ...")
+        import rclpy.parameter as p_mod
+        from go2_language_grounding.grounding_node import GroundingNode
         from go2_open_vocab_detector.detector_node import DetectorNode
         from go2_scene_graph.scene_graph_node import SceneGraphNode
-        from go2_language_grounding.grounding_node import GroundingNode
-        import rclpy.parameter as p_mod
 
         detector = DetectorNode()
         detector.set_parameters([

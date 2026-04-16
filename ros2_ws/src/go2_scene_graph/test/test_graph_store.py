@@ -1,7 +1,6 @@
 """Unit tests for SceneGraphStore."""
 
 import numpy as np
-
 from go2_scene_graph.graph_store import (
     AssociationParams,
     SceneGraphStore,

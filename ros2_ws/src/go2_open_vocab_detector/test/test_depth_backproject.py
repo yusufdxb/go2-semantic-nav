@@ -2,7 +2,6 @@
 
 import numpy as np
 import pytest
-
 from go2_open_vocab_detector.depth_backproject import (
     CameraIntrinsics,
     backproject_pixel,

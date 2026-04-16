@@ -23,22 +23,19 @@ from typing import Optional
 
 import numpy as np
 import rclpy
-from builtin_interfaces.msg import Time as TimeMsg
 from geometry_msgs.msg import PoseStamped
-from nav_msgs.msg import OccupancyGrid
-from rcl_interfaces.msg import ParameterDescriptor
-from rclpy.action import ActionServer, CancelResponse, GoalResponse
-from rclpy.duration import Duration as RclDuration
-from rclpy.executors import MultiThreadedExecutor
-from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy
-
 from go2_semantic_msgs.action import GroundAndNavigate
 from go2_semantic_msgs.msg import (
     GroundingCandidate,
     SceneGraph,
     SemanticObject,
 )
+from nav_msgs.msg import OccupancyGrid
+from rcl_interfaces.msg import ParameterDescriptor
+from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 from .goal_sampler import SamplerParams, sample_stand_off
 from .query_parser import ParsedQuery, parse

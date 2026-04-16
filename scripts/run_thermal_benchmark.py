@@ -22,10 +22,9 @@ from pathlib import Path
 from typing import Optional
 
 import rclpy
+from go2_semantic_msgs.msg import SemanticDetectionArray
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
-
-from go2_semantic_msgs.msg import SemanticDetectionArray
 
 
 class HzProbe(Node):

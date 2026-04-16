@@ -148,7 +148,7 @@ def plot_thermal(thermal_csv: Path, out: Path) -> None:
     ax2.set_ylabel("GPU temp / util", color="r")
     ax2.tick_params(axis="y", labelcolor="r")
     lines = ax1.get_lines() + ax2.get_lines()
-    ax2.legend(lines, [l.get_label() for l in lines], loc="upper right")
+    ax2.legend(lines, [ln.get_label() for ln in lines], loc="upper right")
     ax1.set_title("Jetson thermal soak")
     fig.tight_layout()
     fig.savefig(out / "thermal_plot.png", dpi=120)

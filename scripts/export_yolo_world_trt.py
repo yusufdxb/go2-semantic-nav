@@ -13,7 +13,6 @@ skipped unless --trtexec is explicitly pointed at an installed binary.
 from __future__ import annotations
 
 import argparse
-import os
 import shutil
 import subprocess
 import sys

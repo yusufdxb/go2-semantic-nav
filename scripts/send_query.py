@@ -14,10 +14,9 @@ import sys
 import time
 
 import rclpy
+from go2_semantic_msgs.action import GroundAndNavigate
 from rclpy.action import ActionClient
 from rclpy.node import Node
-
-from go2_semantic_msgs.action import GroundAndNavigate
 
 
 def main() -> int:

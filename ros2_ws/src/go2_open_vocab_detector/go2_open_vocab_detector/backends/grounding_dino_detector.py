@@ -63,7 +63,7 @@ class GroundingDinoDetector(DetectorBackend):
 
         boxes = results["boxes"].detach().cpu().numpy().astype(np.float32)
         scores = results["scores"].detach().cpu().numpy().astype(np.float32)
-        labels = [str(l) for l in results.get("labels", results.get("text_labels", []))]
+        labels = [str(lbl) for lbl in results.get("labels", results.get("text_labels", []))]
 
         if len(labels) > max_objects:
             order = np.argsort(-scores)[:max_objects]

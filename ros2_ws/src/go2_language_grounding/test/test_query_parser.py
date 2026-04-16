@@ -1,7 +1,6 @@
 """Unit tests for the rule-based query parser."""
 
 import pytest
-
 from go2_language_grounding.query_parser import parse
 
 

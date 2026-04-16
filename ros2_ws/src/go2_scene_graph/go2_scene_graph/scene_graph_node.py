@@ -17,15 +17,7 @@ from typing import Optional
 import numpy as np
 import rclpy
 from builtin_interfaces.msg import Time as TimeMsg
-from geometry_msgs.msg import PoseStamped, Vector3
-from rclpy.duration import Duration as RclDuration
-from rclpy.executors import MultiThreadedExecutor
-from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy
-from tf2_ros import Buffer, TransformException, TransformListener
-from tf2_geometry_msgs import do_transform_point  # noqa: F401  (registers PointStamped hook)
-from geometry_msgs.msg import PointStamped
-
+from geometry_msgs.msg import PointStamped, PoseStamped, Vector3
 from go2_semantic_msgs.msg import (
     GroundingCandidate,
     SceneGraph,
@@ -34,8 +26,14 @@ from go2_semantic_msgs.msg import (
     SemanticObject,
 )
 from go2_semantic_msgs.srv import QueryObjects
+from rclpy.duration import Duration as RclDuration
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
+from tf2_geometry_msgs import do_transform_point  # noqa: F401  (registers PointStamped hook)
+from tf2_ros import Buffer, TransformException, TransformListener
 
-from .graph_store import AssociationParams, SceneGraphStore, cosine_similarity
+from .graph_store import AssociationParams, SceneGraphStore
 from .marker_viz import build_object_markers
 from .spatial_relations import RelationParams, compute_edges
 

@@ -24,13 +24,12 @@ import numpy as np
 import rclpy
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Point, Vector3
+from go2_semantic_msgs.msg import SemanticDetection, SemanticDetectionArray
 from rcl_interfaces.msg import ParameterDescriptor, SetParametersResult
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import CameraInfo, Image, RegionOfInterest
 from vision_msgs.msg import BoundingBox2D, Pose2D
-
-from go2_semantic_msgs.msg import SemanticDetection, SemanticDetectionArray
 
 from .backends import make_detector, make_encoder, make_segmenter
 from .depth_backproject import (
@@ -211,7 +210,6 @@ class DetectorNode(Node):
         max_objects = int(self.get_parameter("max_objects_per_frame").value)
         min_depth_m = float(self.get_parameter("min_depth_m").value)
         max_depth_m = float(self.get_parameter("max_depth_m").value)
-        mask_downsample = max(1, int(self.get_parameter("mask_downsample").value))
 
         # Inference chain ---------------------------------------------------
         t0_ns = time.perf_counter_ns()
@@ -246,10 +244,6 @@ class DetectorNode(Node):
 
         for i in range(det_out.boxes_xyxy.shape[0]):
             mask_full = seg_out.masks[i]
-            if mask_downsample > 1:
-                mask_ds = mask_full[::mask_downsample, ::mask_downsample]
-            else:
-                mask_ds = mask_full
 
             centroid, depth_median, dims = object_centroid_3d(
                 mask=mask_full,
