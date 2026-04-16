@@ -92,13 +92,12 @@ def main() -> int:
     try:
         import rclpy
         import rclpy.parameter as p_mod
-        from rclpy.action import ActionClient
-        from rclpy.executors import MultiThreadedExecutor
-
         from go2_language_grounding.grounding_node import GroundingNode
         from go2_open_vocab_detector.detector_node import DetectorNode
         from go2_scene_graph.scene_graph_node import SceneGraphNode
         from go2_semantic_msgs.action import GroundAndNavigate
+        from rclpy.action import ActionClient
+        from rclpy.executors import MultiThreadedExecutor
 
         rclpy.init()
 

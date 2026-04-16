@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import time
 from pathlib import Path
 
 
@@ -32,8 +31,8 @@ def main() -> int:
     summary_path = out_dir / "summary.json"
 
     print(f"[benchmark] bag={args.bag} config={args.config} frames={args.frames}")
-    print(f"[benchmark] (stub) replace me with a rosbag2_py reader loop that subscribes to")
-    print(f"[benchmark] /semantic/detections and logs latency_* fields per message.")
+    print("[benchmark] (stub) replace me with a rosbag2_py reader loop that subscribes to")
+    print("[benchmark] /semantic/detections and logs latency_* fields per message.")
 
     # Scaffold: write a trivial header so downstream analysis scripts have a stable shape.
     with csv_path.open("w", newline="") as f:

@@ -14,17 +14,14 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
-import sys
 import time
 from collections import defaultdict
 from pathlib import Path
 
 import rclpy
+from go2_semantic_msgs.msg import SemanticDetectionArray
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
-
-from go2_semantic_msgs.msg import SemanticDetectionArray
-
 
 _FIELDS = (
     "latency_detector_ms",

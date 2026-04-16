@@ -10,10 +10,9 @@ Design goals:
 from __future__ import annotations
 
 import math
-import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Iterable, Optional
+from typing import Optional
 
 import numpy as np
 
@@ -106,7 +105,6 @@ class SceneGraphStore:
 
         Returns (object_id, is_new).
         """
-        p = self._params
         if embedding.size == 0:
             raise ValueError("ingest: embedding must be non-empty")
         # L2-normalize defensively

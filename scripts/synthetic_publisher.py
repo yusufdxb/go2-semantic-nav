@@ -16,9 +16,7 @@ overlaid so the back-projection has something to work with.
 
 from __future__ import annotations
 
-import argparse
 import math
-import time
 from pathlib import Path
 
 import cv2

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
-from geometry_msgs.msg import Pose, PoseStamped, Quaternion
+from geometry_msgs.msg import PoseStamped, Quaternion
 from nav_msgs.msg import OccupancyGrid
 
 

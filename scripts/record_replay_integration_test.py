@@ -31,7 +31,6 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Optional
 
 
 def _run_and_wait(cmd: list[str], timeout_s: float, name: str) -> tuple[int, str, str]:
@@ -114,13 +113,12 @@ def _replay_and_ground(bag_path: Path, text_query: str, timeout_s: float) -> dic
 
         import rclpy
         import rclpy.parameter as p_mod
-        from rclpy.action import ActionClient
-        from rclpy.executors import MultiThreadedExecutor
-
         from go2_language_grounding.grounding_node import GroundingNode
         from go2_open_vocab_detector.detector_node import DetectorNode
         from go2_scene_graph.scene_graph_node import SceneGraphNode
         from go2_semantic_msgs.action import GroundAndNavigate
+        from rclpy.action import ActionClient
+        from rclpy.executors import MultiThreadedExecutor
 
         # Pass use_sim_time via rclpy.init so every node inherits it from the context.
         rclpy.init(args=["--ros-args", "-p", "use_sim_time:=true"])
@@ -151,7 +149,7 @@ def _replay_and_ground(bag_path: Path, text_query: str, timeout_s: float) -> dic
         t0 = time.time()
         # Wait for scene graph to populate AND be received by the grounding node's
         # subscriber cache (the grounding action's accept-handler checks that cache).
-        print(f"[replay] warmup up to 30 s for scene graph ...")
+        print("[replay] warmup up to 30 s for scene graph ...")
         while time.time() - t0 < 30.0:
             executor.spin_once(timeout_sec=0.2)
             internal_ok = len(sg._store.objects_with_min_observations()) > 0

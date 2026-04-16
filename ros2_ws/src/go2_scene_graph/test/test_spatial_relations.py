@@ -3,7 +3,6 @@
 import math
 
 import numpy as np
-
 from go2_scene_graph.graph_store import TrackedObject
 from go2_scene_graph.spatial_relations import (
     RelationParams,

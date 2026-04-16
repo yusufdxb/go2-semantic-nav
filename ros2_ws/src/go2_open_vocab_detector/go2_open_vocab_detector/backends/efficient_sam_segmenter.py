@@ -18,13 +18,15 @@ class EfficientSamSegmenter(SegmenterBackend):
 
     def load(self, device: str) -> None:
         try:
-            from efficient_sam.build_efficient_sam import build_efficient_sam_vitt, build_efficient_sam_vits  # type: ignore
+            from efficient_sam.build_efficient_sam import (  # type: ignore
+                build_efficient_sam_vits,
+                build_efficient_sam_vitt,
+            )
         except ImportError as exc:
             raise RuntimeError(
                 "EfficientSAM requires the `efficient_sam` package (pip install from "
                 "https://github.com/yformer/EfficientSAM). Not yet installed."
             ) from exc
-        import torch
 
         builder = build_efficient_sam_vitt if self._size == "ti" else build_efficient_sam_vits
         self._model = builder().to(device).eval()
