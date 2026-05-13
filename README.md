@@ -23,17 +23,18 @@ Live 3DGS optimization with densification does not hit near-real-time on Jetson 
 
 ## System at a glance
 
+- **Target hardware:** NVIDIA Jetson Orin NX 16 GB on Unitree GO2, plus RTX 5070 dev workstation (`mewtwo`).
+- **Target latency budget:** sensor to `/goal_pose` under 100 ms on Jetson at 25 W (dev-workstation pipeline runs at 68 ms total on RTX 5070; Jetson on-robot eval pending).
+- **Phase:** Phase 1, scaffold complete, dev-workstation eval landed, robot eval pending.
+- **Eval state:** dev numbers in [`RESULTS.md`](RESULTS.md); on-robot eval not yet run.
+
 ```mermaid
 flowchart TD
-    RS["RealSense D435i (GO2)<br/>/camera/color/image_raw<br/>/camera/depth/image_rect_raw<br/>/camera/color/camera_info"]
-
-    DET["go2_open_vocab_detector (rclpy lifecycle)<br/>YOLO-World v2 / YOLOE: open-vocab boxes<br/>MobileSAM / NanoSAM: mask per box<br/>OpenCLIP / MobileCLIP: per-object embed<br/>depth back-projection: 3D centroid<br/>publishes /semantic/detections"]
-
-    SG["go2_scene_graph (rclpy lifecycle)<br/>TF camera_color_optical_frame to map<br/>data-association and merge across frames<br/>publishes /semantic/scene_graph<br/>publishes /semantic/object_markers (RViz)<br/>serves /semantic/query_objects"]
-
-    GR["go2_language_grounding (rclpy lifecycle)<br/>query parser plus CLIP text encode<br/>spatial relation resolver<br/>costmap-aware stand-off goal sampling<br/>action /semantic/ground_and_navigate<br/>publishes /goal_pose to Nav2"]
-
-    NAV2["existing Nav2 + go2_gait_controller<br/>(GO2-seeing-eye-dog)"]
+    RS["RealSense D435i (GO2)"]
+    DET["go2_open_vocab_detector<br/>open-vocab detection + masks + CLIP embed"]
+    SG["go2_scene_graph<br/>online 3D object-centric graph in map frame"]
+    GR["go2_language_grounding<br/>text query to reachable goal pose"]
+    NAV2["existing Nav2 + go2_gait_controller"]
 
     RS --> DET
     DET --> SG
@@ -52,6 +53,32 @@ Five ROS 2 packages (four Python, one CMake/IDL):
 | `go2_semantic_bringup` | Launch orchestration, RViz preset, composite configs |
 
 Source tree under `ros2_ws/src/` matches this table 1:1.
+
+### What each package actually does
+
+- **RealSense D435i (GO2) inputs:**
+  - `/camera/color/image_raw`
+  - `/camera/depth/image_rect_raw`
+  - `/camera/color/camera_info`
+- **`go2_open_vocab_detector` (rclpy lifecycle):**
+  - YOLO-World v2 / YOLOE for open-vocab boxes
+  - MobileSAM / NanoSAM for mask per box
+  - OpenCLIP / MobileCLIP for per-object embed
+  - depth back-projection for 3D centroid
+  - publishes `/semantic/detections`
+- **`go2_scene_graph` (rclpy lifecycle):**
+  - TF from `camera_color_optical_frame` to `map`
+  - data-association and merge across frames
+  - publishes `/semantic/scene_graph`
+  - publishes `/semantic/object_markers` (RViz)
+  - serves `/semantic/query_objects`
+- **`go2_language_grounding` (rclpy lifecycle):**
+  - query parser plus CLIP text encode
+  - spatial relation resolver
+  - costmap-aware stand-off goal sampling
+  - action `/semantic/ground_and_navigate`
+  - publishes `/goal_pose` to Nav2
+- **existing Nav2 + `go2_gait_controller`:** unchanged, lives in the [`GO2-seeing-eye-dog`](https://github.com/yusufdxb/GO2-seeing-eye-dog) overlay.
 
 ---
 
