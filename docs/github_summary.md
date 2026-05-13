@@ -38,7 +38,7 @@ Closed-vocabulary person-following stacks (YOLOv8 on a fixed class list) cannot 
 - [Demo](docs/demo.md) — operator procedure for a live walkthrough
 - [Experiments](docs/experiments.md) — eval metrics and reproducibility protocol
 - [Paper outline](docs/paper_outline.md)
-- [Resume bullets](docs/resume_bullets.md)
+- [Portfolio notes](docs/portfolio_notes.md)
 - [AGENTS.md](AGENTS.md) — rules for LLM agents working in this repo
 
 ## Related projects in the same ecosystem
