@@ -1,7 +1,7 @@
-# Resume bullets — go2-semantic-nav
+# Portfolio notes, go2-semantic-nav
 
-Tailor length and numbers to the target role. Fill in measured values from the
-Jetson ablation once Phase 5 is executed; placeholders are tagged `<…>`.
+Project-summary phrasings, suitable for talks, posters, or write-ups. Numbers
+are placeholders (tagged `<…>`) until the Jetson ablation in Phase 5 lands.
 
 ## Lead bullet (one-line)
 

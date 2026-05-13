@@ -21,7 +21,7 @@ This project adheres roughly to [Keep a Changelog](https://keepachangelog.com/en
 - `slam_fallback.launch.py` + `use_slam_fallback` arg on composite bringup — covers the inherited `/odom` blocker.
 - Real rosbag-backed eval harness (`eval/run_eval.py`) with synthetic + rosbag modes.
 - `.github/workflows/ci.yml`: ruff lint + msgs build + pure-Python unit smoke.
-- `CONTRIBUTING.md`, `RESULTS.md`, `docs/jetson_cookbook.md`, `docs/latency_instrumentation.md`, `docs/resume_bullets.md`, `docs/paper_outline.md`, `docs/github_summary.md`.
+- `CONTRIBUTING.md`, `RESULTS.md`, `docs/jetson_cookbook.md`, `docs/latency_instrumentation.md`, `docs/portfolio_notes.md`, `docs/paper_outline.md`, `docs/github_summary.md`.
 
 ### Changed
 - Raised grounding score threshold from a single `>0.15` gate to a two-layer rejection (absolute + label/clip floor) after the v1 eval surfaced false positives where the pipeline happily matched "guitar" to "person" at score ~0.18.

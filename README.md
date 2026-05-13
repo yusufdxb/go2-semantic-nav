@@ -1,5 +1,9 @@
 # go2-semantic-nav
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![ROS 2 Humble](https://img.shields.io/badge/ROS_2-Humble-blue.svg)](https://docs.ros.org/en/humble/)
+[![Jetson Orin NX](https://img.shields.io/badge/Jetson-Orin_NX_16GB-76B900.svg)](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/)
+
 **Open-vocabulary 3D semantic scene-graph mapping and language-grounded navigation for the Unitree GO2 quadruped on NVIDIA Jetson Orin NX 16 GB.**
 
 Speak or type a natural-language target — *"go stand next to the red chair"*, *"move near the window"*, *"approach the table beside the couch"* — and the robot builds an open-vocabulary 3D scene graph online, grounds the query against it, computes a reachable goal pose, and hands off to the existing Nav2 stack for execution.
