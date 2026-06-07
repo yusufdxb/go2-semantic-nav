@@ -9,7 +9,7 @@ are placeholders (tagged `<…>`) until the Jetson ablation in Phase 5 lands.
 
 ## Three-bullet version
 
-- **Designed + shipped a modular ROS 2 overlay (5 packages)** that adds open-vocabulary 3D semantic scene-graph mapping to the Unitree GO2 without editing the existing autonomy stack — subscribes to RealSense RGB-D, publishes `/goal_pose` to Nav2, and exposes a `GroundAndNavigate` action server.
+- **Designed + shipped a modular ROS 2 overlay (5 packages)** that adds open-vocabulary 3D semantic scene-graph mapping to the Unitree GO2 without editing the existing autonomy stack, subscribes to RealSense RGB-D, publishes `/goal_pose` to Nav2, and exposes a `GroundAndNavigate` action server.
 - **Engineered for edge deployment on Jetson Orin NX 16 GB:** pluggable backend layer lets the detector (YOLO-World v2-s / YOLOE-11s), segmenter (MobileSAM / NanoSAM), and CLIP encoder (OpenCLIP ViT-B/16 / MobileCLIP-S2) swap by config; sustained **<X>** FPS detection at 25 W after thermal soak, **<P50>** ms grounding p50.
 - **Built an honest evaluation harness** covering grounding top-1/top-5, navigation success, SPL, latency, and expected-failure honesty on a 20-query suite spanning direct nouns, attribute disambiguation (`"the red chair"`), and binary spatial relations (`"the table next to the couch"`). Results, ablations, and failure modes are committed alongside the code.
 
@@ -23,13 +23,13 @@ are placeholders (tagged `<…>`) until the Jetson ablation in Phase 5 lands.
 
 ## One-sentence versions (for LinkedIn headline, email subject lines)
 
-- *"Language-grounded quadruped navigation on edge hardware — 3D semantic scene graphs + CLIP + ROS 2, shipped on a Unitree GO2."*
+- *"Language-grounded quadruped navigation on edge hardware, 3D semantic scene graphs + CLIP + ROS 2, shipped on a Unitree GO2."*
 - *"Ship open-vocab robot nav to a Jetson without losing the real-time story."*
 - *"Modular ROS 2 overlay that turns text into Nav2 goals for a real quadruped."*
 
 ## Interview talking points
 
-- **Why not 3D Gaussian Splatting?** Live GS optimization with densification does not hit real-time on Orin NX 25 W. GS is a rendering representation — the semantic payload still comes from a separate VLM. Object-centric scene graphs (ConceptGraphs, OK-Robot, VLMaps family) match or beat GS on language grounding while being 10–100× cheaper to maintain online.
-- **Why overlay, not fork?** The sibling seeing-eye-dog stack is actively being worked on for gait tuning; forking doubles maintenance and splits reviewers. The overlay subscribes to the same camera topics and publishes `/goal_pose` exactly like the existing `go2_intent_grounding` node — zero integration cost, and the overlay repo stands alone as a paper artifact.
-- **Hardest-to-debug moment?** TF timing — the scene-graph node was discarding detections because its TF lookup used `stamp=msg.header.stamp` with a 0.1 s timeout, and on a cold boot TF static-transforms hadn't propagated yet. Fixed by retrying with `ros::Time(0)` as a last resort and logging dropped frames at WARN once per 5 s.
-- **What would you build next?** A patch-level CLIP feature channel (phase 2.5) — the sibling `openvocab-tsdf` project already does voxel-level CLIP; wiring that in as a Tier-C offboard companion gives queries like "the hallway" or "the empty corner" that object-centric graphs can't answer.
+- **Why not 3D Gaussian Splatting?** Live GS optimization with densification does not hit real-time on Orin NX 25 W. GS is a rendering representation, the semantic payload still comes from a separate VLM. Object-centric scene graphs (ConceptGraphs, OK-Robot, VLMaps family) match or beat GS on language grounding while being 10-100× cheaper to maintain online.
+- **Why overlay, not fork?** The sibling seeing-eye-dog stack is actively being worked on for gait tuning; forking doubles maintenance and splits reviewers. The overlay subscribes to the same camera topics and publishes `/goal_pose` exactly like the existing `go2_intent_grounding` node, zero integration cost, and the overlay repo stands alone as a paper artifact.
+- **Hardest-to-debug moment?** TF timing, the scene-graph node was discarding detections because its TF lookup used `stamp=msg.header.stamp` with a 0.1 s timeout, and on a cold boot TF static-transforms hadn't propagated yet. Fixed by retrying with `ros::Time(0)` as a last resort and logging dropped frames at WARN once per 5 s.
+- **What would you build next?** A patch-level CLIP feature channel (phase 2.5), the sibling `openvocab-tsdf` project already does voxel-level CLIP; wiring that in as a Tier-C offboard companion gives queries like "the hallway" or "the empty corner" that object-centric graphs can't answer.

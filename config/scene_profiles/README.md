@@ -8,7 +8,7 @@ Pre-tuned backend + threshold combinations for the three deploy tiers documented
 | `dev_mewtwo_rtx5070.yaml` | RTX 5070 workstation | Interactive development; biggest model we can afford at ~5 Hz |
 | `jetson_tier_a.yaml` | Jetson Orin NX 25 W | **Default on-robot profile.** 3 Hz sustained with Nav2 headroom |
 | `jetson_tier_b_burst.yaml` | Jetson Orin NX 25 W | Stationary room-scan bursts (higher recall, ~1 Hz) |
-| `offboard_rtx_companion.yaml` | RTX 5070 laptop via DDS | Tier C — heavy stack offboard, robot subscribes |
+| `offboard_rtx_companion.yaml` | RTX 5070 laptop via DDS | Tier C, heavy stack offboard, robot subscribes |
 
 ## Usage
 
@@ -31,6 +31,6 @@ name, so each node reads only its own section).
 2. Change backend ids to match your target. Valid ids are enumerated in
    `ros2_ws/src/go2_open_vocab_detector/go2_open_vocab_detector/backends/factory.py`.
 3. Tune the rejection floors after running `eval/run_eval.py` with the old
-   thresholds against your scene — drop floors that refuse correct matches,
+   thresholds against your scene, drop floors that refuse correct matches,
    raise floors that accept wrong matches. Document the measured ablation in
    `RESULTS.md`.

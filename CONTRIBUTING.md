@@ -1,16 +1,16 @@
 # Contributing to go2-semantic-nav
 
-Thanks for considering a contribution. This project is a research-grade ROS 2 overlay for a Unitree GO2 — contributions need to preserve the overlay contract and respect the deploy target (Jetson Orin NX 16 GB at 25 W).
+Thanks for considering a contribution. This project is a research-grade ROS 2 overlay for a Unitree GO2, contributions need to preserve the overlay contract and respect the deploy target (Jetson Orin NX 16 GB at 25 W).
 
 ## Ground rules (non-negotiable)
 
 1. **Do not edit the sibling `GO2-seeing-eye-dog` stack.** This repo overlays it. If your change requires something there, open an issue there first.
-2. **Do not break interface contracts.** `/goal_pose` (`PoseStamped` in `map`), `/semantic/detections`, `/semantic/scene_graph`, `/semantic/query_objects`, `/semantic/ground_and_navigate` — their schema is frozen unless a major-version bump ships a migration doc.
+2. **Do not break interface contracts.** `/goal_pose` (`PoseStamped` in `map`), `/semantic/detections`, `/semantic/scene_graph`, `/semantic/query_objects`, `/semantic/ground_and_navigate`: their schema is frozen unless a major-version bump ships a migration doc.
 3. **Match the QoS contract.** Camera image subs are `BEST_EFFORT` depth 1; camera_info is `RELIABLE` depth 10; `/goal_pose` is `RELIABLE` depth 10; semantic topics are `RELIABLE` depth 5.
 4. **No live 3D Gaussian Splatting in the critical path.** The decision is documented in `docs/architecture.md` §"Why not 3DGS" and `decisions.md`. If you disagree, add an entry to `decisions.md` with measured evidence before landing code.
 5. **Don't bump torch or cv_bridge numpy pins.** `numpy<2.0` is required for cv_bridge compat. Use a venv and pin.
 
-## Repository layout — who owns what
+## Repository layout: who owns what
 
 | Area | Files | Ownership |
 |---|---|---|
@@ -97,4 +97,4 @@ If none of those apply, open an issue with:
 
 ## Questions?
 
-Open an issue or email the maintainer. Please don't bring licensing questions into code reviews — handle those in a separate channel.
+Open an issue or email the maintainer. Please don't bring licensing questions into code reviews, handle those in a separate channel.

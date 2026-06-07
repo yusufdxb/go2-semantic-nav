@@ -16,7 +16,7 @@ docker run --rm -it --gpus all \
   go2-semantic-nav:dev
 ```
 
-## Jetson container (TODO — Phase 4)
+## Jetson container (TODO: Phase 4)
 Planned base: `nvcr.io/nvidia/l4t-pytorch:r36.2.0-pth2.3-py3` for JetPack 6.x.
 Will add TensorRT engine-export helpers and a lightweight entry script.
 

@@ -14,10 +14,10 @@ A 10-minute live demo that makes the capability unambiguous. Designed for a recr
 
 ## Script
 
-### Take 1 — Dry run ("which chair?")
+### Take 1: Dry run ("which chair?")
 Operator narrates:
 
-> "The robot has been observing the room for 20 seconds. RViz shows the live scene graph — each colored sphere is an object with a language-queryable CLIP embedding. Let's ask it where the red chair is."
+> "The robot has been observing the room for 20 seconds. RViz shows the live scene graph, each colored sphere is an object with a language-queryable CLIP embedding. Let's ask it where the red chair is."
 
 Operator runs:
 ```bash
@@ -35,7 +35,7 @@ What the viewer sees:
 Narration:
 > "The system found two chairs in the graph. The red one scored 0.82, the other 0.41. It picked the higher-scoring one and computed a reachable stand-off pose from the costmap."
 
-### Take 2 — Commit ("now go there")
+### Take 2: Commit ("now go there")
 Operator runs:
 ```bash
 ros2 action send_goal /semantic/ground_and_navigate \
@@ -49,7 +49,7 @@ What happens:
 - Robot walks via the existing `go2_gait_controller`.
 - Action feedback shows state transitions: `GROUNDED → NAVIGATING → REACHED`.
 
-### Take 3 — Recovery ("can you approach a window instead?")
+### Take 3: Recovery ("can you approach a window instead?")
 ```bash
 ros2 action send_goal /semantic/ground_and_navigate \
     go2_semantic_msgs/action/GroundAndNavigate \
@@ -63,7 +63,7 @@ If the scene graph does not contain a window (it typically will, via open-vocab 
 ## Fallback demos (if robot can't move)
 
 If motors must stay off:
-- Use `dry_run: true` for all queries. The value proposition — open-vocab grounding, live scene graph, goal generation — is already complete in RViz.
+- Use `dry_run: true` for all queries. The value proposition, open-vocab grounding, live scene graph, goal generation, is already complete in RViz.
 - Publish a simulated base pose via `static_transform_publisher` to fake odometry.
 
 If scene-graph is empty:
@@ -72,19 +72,19 @@ If scene-graph is empty:
 
 ## What to emphasize on camera
 
-- **Open vocabulary.** Try a class not in the prompt list mid-demo ("approach the backpack") — the system may or may not find it; use this to talk about the burst-mode OWLv2 fallback.
+- **Open vocabulary.** Try a class not in the prompt list mid-demo ("approach the backpack"), the system may or may not find it; use this to talk about the burst-mode OWLv2 fallback.
 - **Failure honesty.** Show a query that returns `success=false` rather than hiding it.
 - **Edge deployment.** In `tegrastats`, point out sustained GPU <90% at 25 W during steady-state detection.
 - **Modularity.** Kill the detector node mid-demo: `ros2 lifecycle set /go2_open_vocab_detector deactivate`. The seeing-eye-dog stack keeps running.
 
 ## What NOT to say on camera
 
-- Do not claim "3D Gaussian Splatting" — the representation is object-centric scene graph + CLIP.
-- Do not claim "end-to-end learned" — grounding has a parser + CLIP scoring + geometric relation resolver, not a policy network.
+- Do not claim "3D Gaussian Splatting", the representation is object-centric scene graph + CLIP.
+- Do not claim "end-to-end learned", grounding has a parser + CLIP scoring + geometric relation resolver, not a policy network.
 - Do not claim latency numbers that were measured on RTX 5070. All reported latency is Jetson 25 W sustained.
 
 ## Recording setup
 
 - Screen: RViz at 1080p, terminal split with a command palette and tegrastats stream.
 - Audio: narration over; no robot motor whine unless actuating.
-- Length target: 90–120 seconds for a resume-linked clip; 5–7 minutes for a PI-facing walkthrough with architecture intro.
+- Length target: 90-120 seconds for a resume-linked clip; 5-7 minutes for a PI-facing walkthrough with architecture intro.

@@ -36,7 +36,7 @@ ros2 topic info --verbose /camera/color/image_raw
 ### Detector subscribes but publishes nothing
 - **Check 1:** camera topic hz > 0. If not, the RealSense driver isn't running.
 - **Check 2:** `ros2 lifecycle get /go2_open_vocab_detector` is `active`, not `inactive` or `unconfigured`.
-- **Check 3:** logs show `YOLO-World weights loaded` — if stuck, the weights download is probably blocked (no internet on Jetson? share via laptop).
+- **Check 3:** logs show `YOLO-World weights loaded`: if stuck, the weights download is probably blocked (no internet on Jetson? share via laptop).
 - **Fix:** `ros2 lifecycle set /go2_open_vocab_detector configure` then `activate`.
 
 ### Detector CPU-bound, no GPU utilization
@@ -46,9 +46,9 @@ ros2 topic info --verbose /camera/color/image_raw
 
 ### Scene graph has no objects in `map` frame
 - **Symptom:** `ros2 topic echo /semantic/scene_graph` shows empty `nodes`.
-- **Cause 1:** TF `camera_color_optical_frame → map` lookup failing (most common). Check `ros2 run tf2_ros tf2_echo map camera_color_optical_frame` — error means `/odom` is broken.
+- **Cause 1:** TF `camera_color_optical_frame → map` lookup failing (most common). Check `ros2 run tf2_ros tf2_echo map camera_color_optical_frame`: error means `/odom` is broken.
 - **Cause 2:** detections topic not reaching the scene-graph node (QoS mismatch or remapping).
-- **Cause 3:** `min_observations_to_publish` too high — objects observed fewer than N frames are filtered.
+- **Cause 3:** `min_observations_to_publish` too high, objects observed fewer than N frames are filtered.
 - **Fix for Cause 1:** launch with `use_slam_toolbox:=true`, or debug odometry in the sibling seeing-eye-dog stack (known: `/odom` stuck at (0,0,0) is a tracked blocker).
 
 ### Grounding returns wrong object
@@ -104,7 +104,7 @@ ros2 topic info --verbose /camera/color/image_raw
 
 ### Grounding returns `success=True` with an obviously wrong object
 - **Cause:** Raw CLIP cosine similarity between unrelated text and image crops sits in [0.15, 0.25]. A single `total_score >= 0.15` gate accepts any detection as "good enough" for any query.
-- **Fix (already in code):** the two-layer rejection in `grounding_node._execute_action` combines an absolute score floor with a `(label_floor OR clip_floor)` secondary gate. Tune `label_floor` (default 0.40) and `clip_floor` (default 0.22) via params if you see the opposite problem — legitimate matches being refused.
+- **Fix (already in code):** the two-layer rejection in `grounding_node._execute_action` combines an absolute score floor with a `(label_floor OR clip_floor)` secondary gate. Tune `label_floor` (default 0.40) and `clip_floor` (default 0.22) via params if you see the opposite problem, legitimate matches being refused.
 
 ### `torch` silently downgraded after `pip install --force-reinstall <anything>`
 - **Cause:** pip's index resolution picks the default PyPI wheel (CUDA 13 suffix) over the cu128 one unless `--extra-index-url https://download.pytorch.org/whl/cu128` is passed on every reinstall.

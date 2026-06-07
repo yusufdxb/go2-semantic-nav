@@ -108,5 +108,5 @@ flowchart TD
 | produce | `/semantic/object_markers` | `visualization_msgs/MarkerArray` | RELIABLE | 5 | scene_graph |
 | produce | `/semantic/grounding_viz` | `visualization_msgs/MarkerArray` | RELIABLE | 10 | grounding |
 | produce | `/goal_pose` | `geometry_msgs/PoseStamped` | RELIABLE | 10 | grounding |
-| service | `/semantic/query_objects` | `go2_semantic_msgs/QueryObjects` | — | — | scene_graph |
-| action | `/semantic/ground_and_navigate` | `go2_semantic_msgs/GroundAndNavigate` | — | — | grounding |
+| service | `/semantic/query_objects` | `go2_semantic_msgs/QueryObjects` |, |, | scene_graph |
+| action | `/semantic/ground_and_navigate` | `go2_semantic_msgs/GroundAndNavigate` |, |, | grounding |

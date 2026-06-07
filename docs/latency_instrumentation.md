@@ -71,7 +71,7 @@ Output JSON structure:
 
 ## When the numbers look wrong
 
-- Total ≪ sum of stages → backends are overlapping (good) — but check that your
+- Total ≪ sum of stages → backends are overlapping (good), but check that your
   executor is actually parallelizing them.
 - Detector p95 ≫ p50 with big tail → GPU thermal throttling, check `tegrastats`.
 - Segmenter dominates → too many detections; cap `max_objects_per_frame`.

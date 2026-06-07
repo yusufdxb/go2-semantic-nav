@@ -2,7 +2,7 @@
 
 Two target environments: **dev workstation (`mewtwo`, RTX 5070)** and **robot onboard (Jetson Orin NX 16 GB)**. Configurations, weights, and dependency paths differ; interfaces do not.
 
-## Dev — `mewtwo` (RTX 5070, CUDA 12.8)
+## Dev: `mewtwo` (RTX 5070, CUDA 12.8)
 
 ### One-time setup
 ```bash
@@ -21,19 +21,19 @@ cd ros2_ws
 colcon build --symlink-install
 source install/setup.bash
 
-# Smoke test — should show 5 packages
+# Smoke test: should show 5 packages
 ros2 pkg list | grep go2_
 ```
 
 ### Running with a rosbag
 ```bash
-# Terminal A — sibling stack (sim or real camera driver)
+# Terminal A: sibling stack (sim or real camera driver)
 ros2 launch go2_bringup go2_full.launch.py use_sim:=true
 
-# Terminal B — rosbag play (pre-recorded indoor scene)
+# Terminal B: rosbag play (pre-recorded indoor scene)
 ros2 bag play ~/data/go2-indoor-sample/ --loop
 
-# Terminal C — this stack
+# Terminal C: this stack
 ros2 launch go2_semantic_bringup semantic_nav.launch.py \
     device:=cuda:0 \
     backend:=yolo_world_v2_s \
@@ -49,7 +49,7 @@ On first launch the nodes pull weights to `~/.cache/...`:
 
 Pre-seed offline environments by running `python scripts/prefetch_models.py`.
 
-## Robot onboard — Jetson Orin NX 16 GB (JetPack 6.x)
+## Robot onboard: Jetson Orin NX 16 GB (JetPack 6.x)
 
 ### One-time setup (on the Jetson, via SSH from laptop)
 ```bash
@@ -63,12 +63,12 @@ mkdir -p ~/go2_ws_overlay/src && cd ~/go2_ws_overlay/src
 git clone git@github.com:<owner>/go2-semantic-nav.git
 cd ~/go2_ws_overlay && ln -s src/go2-semantic-nav/ros2_ws/src . 2>/dev/null || true
 
-# PyTorch on Jetson — use NVIDIA's wheel, NOT pip default
+# PyTorch on Jetson: use NVIDIA's wheel, NOT pip default
 # https://forums.developer.nvidia.com/t/pytorch-for-jetson/72048
 pip install --extra-index-url https://download.pytorch.org/whl/cu128 \
     torch==2.3.0 torchvision==0.18.0
 
-# ML deps — note: skip mobile_sam on Jetson if using NanoSAM
+# ML deps: note: skip mobile_sam on Jetson if using NanoSAM
 pip install ultralytics open_clip_torch transformers networkx open3d
 
 # sentencepiece: build from source on aarch64
@@ -135,7 +135,7 @@ sudo jetson_clocks
 ```
 
 ### Known constraints
-- 25 W sustained budget → detector + SAM + CLIP + scene graph must fit in ≤200 ms/frame at 3–5 Hz with Nav2 headroom.
+- 25 W sustained budget → detector + SAM + CLIP + scene graph must fit in ≤200 ms/frame at 3-5 Hz with Nav2 headroom.
 - OpenCV + cv_bridge pin `numpy<2.0`. Do not let `pip install` bump it.
 - `mobile_sam` pip package is x86-friendly; on Jetson prefer direct checkpoint + NanoSAM TRT engines.
 
@@ -144,7 +144,7 @@ sudo jetson_clocks
 If a laptop (mewtwo) is co-located on the GO2's `192.168.123.0/24` LAN, heavier models can run there and publish to the robot over DDS:
 
 ```bash
-# On mewtwo — acts as a companion publisher
+# On mewtwo: acts as a companion publisher
 export ROS_DOMAIN_ID=7              # match robot's domain
 ros2 launch go2_semantic_bringup detector_offboard.launch.py \
     backend:=grounding_dino_tiny \

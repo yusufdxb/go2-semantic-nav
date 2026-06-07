@@ -25,26 +25,26 @@ Goal: produce a reproducible, defensible evaluation that supports resume bullets
 - Unary spatial relations ("near the window", "in front of the television")
 - Binary spatial relations ("the table next to the couch")
 - Near-miss distractors (two similar objects with a disambiguating attribute)
-- Out-of-prompt-list targets (e.g., "guitar" when the prompt set is indoor-generic) — these are expected failures; the interesting signal is whether the system returns `success=false` rather than a wrong goal.
+- Out-of-prompt-list targets (e.g., "guitar" when the prompt set is indoor-generic), these are expected failures; the interesting signal is whether the system returns `success=false` rather than a wrong goal.
 
 Split: 10 queries for "seen" rooms (used in dev), 10 for "held-out" rooms.
 
 ## Scenes
 
-- **Scene A** — mewtwo office (dev): 15 m², typical indoor objects, good lighting.
-- **Scene B** — lab common area (dev): 40 m², mixed clutter.
-- **Scene C** — held-out apartment living room: 25 m².
+- **Scene A**: mewtwo office (dev): 15 m², typical indoor objects, good lighting.
+- **Scene B**: lab common area (dev): 40 m², mixed clutter.
+- **Scene C**: held-out apartment living room: 25 m².
 
 For the minimum-viable eval, Scene A + Scene C is sufficient.
 
 ## Reproducibility protocol
 
-1. **Hardware declaration** — every reported number names the platform (RTX 5070 vs Jetson Orin NX 25 W) and power mode. Mixing is forbidden.
-2. **Warmup** — discard first 100 detector frames; thermal soak 5 min on Jetson before measurement.
-3. **Sample size** — ≥1000 frames for latency; ≥20 queries × 3 trials for grounding.
-4. **Seed discipline** — pin numpy + torch seeds; for CLIP/YOLO models with deterministic inference, log the checksum.
-5. **Raw data** — commit the per-frame CSV and per-query JSON alongside the analysis script.
-6. **Version pinning** — declare ultralytics, open_clip_torch, torch, and CUDA versions in the result table.
+1. **Hardware declaration**: every reported number names the platform (RTX 5070 vs Jetson Orin NX 25 W) and power mode. Mixing is forbidden.
+2. **Warmup**: discard first 100 detector frames; thermal soak 5 min on Jetson before measurement.
+3. **Sample size**: ≥1000 frames for latency; ≥20 queries × 3 trials for grounding.
+4. **Seed discipline**: pin numpy + torch seeds; for CLIP/YOLO models with deterministic inference, log the checksum.
+5. **Raw data**: commit the per-frame CSV and per-query JSON alongside the analysis script.
+6. **Version pinning**: declare ultralytics, open_clip_torch, torch, and CUDA versions in the result table.
 
 ## Reporting format
 

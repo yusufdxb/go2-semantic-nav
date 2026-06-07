@@ -21,7 +21,7 @@ All numbers are **p50 / p95** over ≥1000 frames post 100-frame warmup.
 | YOLO-Worldv2-s + NanoSAM + MobileCLIP-S2 | jetson-orin-nx-25w | `<…>` | `<…>` | `<…>` | `<…>` | `<…>` |
 | YOLOE-11s + NanoSAM + MobileCLIP-S2 | jetson-orin-nx-25w | `<…>` | `<…>` | `<…>` | `<…>` | `<…>` |
 
-**mewtwo-5070 measurement (2026-04-13, 50 frames post-10 warmup):** `eval/results/latencies_dev_mewtwo.json`. Segmenter dominates (MobileSAM encoder runs once per frame + 1 decode per box — 3 boxes here); YOLO-World detector at 4.6 ms is the cheapest stage. Total 68 ms → theoretical 14.7 Hz upper bound on RTX 5070 with this exact model choice. All latencies measured inside the detector node's callback via `time.perf_counter_ns()` and published in `SemanticDetectionArray.latency_*_ms`.
+**mewtwo-5070 measurement (2026-04-13, 50 frames post-10 warmup):** `eval/results/latencies_dev_mewtwo.json`. Segmenter dominates (MobileSAM encoder runs once per frame + 1 decode per box, 3 boxes here); YOLO-World detector at 4.6 ms is the cheapest stage. Total 68 ms → theoretical 14.7 Hz upper bound on RTX 5070 with this exact model choice. All latencies measured inside the detector node's callback via `time.perf_counter_ns()` and published in `SemanticDetectionArray.latency_*_ms`.
 
 **Captured with the three-process pattern (2026-04-13):**
 ```bash
@@ -47,7 +47,7 @@ Thermal plot: `eval/results/latest/thermal_plot.png` (produced by `scripts/bench
 
 ## Grounding evaluation
 
-Over 20 queries × 1 trial per config in `eval/queries.yaml` (dev-synthetic = bus.jpg only, hence no chair/table/sofa in scene — most in-vocab queries correctly get `success=False`).
+Over 20 queries × 1 trial per config in `eval/queries.yaml` (dev-synthetic = bus.jpg only, hence no chair/table/sofa in scene, most in-vocab queries correctly get `success=False`).
 
 | Config | Top-1 | Top-5 | Expected-failure honesty | Grounding p50 ms | Grounding p95 ms | Notes |
 |---|---|---|---|---|---|---|
@@ -58,7 +58,7 @@ Over 20 queries × 1 trial per config in `eval/queries.yaml` (dev-synthetic = bu
 
 **dev-A-v2 raw output:** `eval/results/dev_mewtwo_synthetic_v2/summary.json`.
 
-**Note on dev top-1:** 0.00 is the correct result for the synthetic scene — bus.jpg contains only people, but the 20-query suite targets chairs, windows, tables, sofas. A 0 top-1 score for "chair" when no chair is physically in the scene is honest behavior, not a regression; the honesty metric is what's informative here. A real indoor rosbag is needed to measure meaningful top-1 / top-5.
+**Note on dev top-1:** 0.00 is the correct result for the synthetic scene, bus.jpg contains only people, but the 20-query suite targets chairs, windows, tables, sofas. A 0 top-1 score for "chair" when no chair is physically in the scene is honest behavior, not a regression; the honesty metric is what's informative here. A real indoor rosbag is needed to measure meaningful top-1 / top-5.
 
 ## End-to-end navigation
 
@@ -74,7 +74,7 @@ Full 6-configuration ablation table lands in `eval/results/ablation.md`.
 
 ## Honest negative results
 
-- **Raw-score thresholding is insufficient on small scenes (documented 2026-04-13).** The v1 grounding used a single `total_score >= 0.15` gate and accepted 16 out of 20 queries against a person-only synthetic scene — even for "approach the guitar" (chose person, total=0.179) and "the dog" (total=0.218). The underlying reason is that OpenCLIP ViT-B/16 gives raw image-text cosines in [0.1, 0.3] for clearly-unrelated pairs (CLIP text-image scores are not calibrated probabilities). The v2 two-layer gate (`absolute_floor=0.15 AND (label>=0.40 OR clip>=0.22)`) lifted expected-failure honesty from 0.00 → 0.67. One out-of-vocab query ("the dog") still slipped through because `CLIP("dog", person_crop) ≈ 0.23 > clip_floor`. A margin-based gate (top-1 − top-2) would catch it but reduces recall on scenes where multiple nearly-indistinguishable objects legitimately satisfy a query. The decision is deferred to Phase 5 post-rosbag eval.
+- **Raw-score thresholding is insufficient on small scenes (documented 2026-04-13).** The v1 grounding used a single `total_score >= 0.15` gate and accepted 16 out of 20 queries against a person-only synthetic scene, even for "approach the guitar" (chose person, total=0.179) and "the dog" (total=0.218). The underlying reason is that OpenCLIP ViT-B/16 gives raw image-text cosines in [0.1, 0.3] for clearly-unrelated pairs (CLIP text-image scores are not calibrated probabilities). The v2 two-layer gate (`absolute_floor=0.15 AND (label>=0.40 OR clip>=0.22)`) lifted expected-failure honesty from 0.00 → 0.67. One out-of-vocab query ("the dog") still slipped through because `CLIP("dog", person_crop) ≈ 0.23 > clip_floor`. A margin-based gate (top-1 − top-2) would catch it but reduces recall on scenes where multiple nearly-indistinguishable objects legitimately satisfy a query. The decision is deferred to Phase 5 post-rosbag eval.
 - **Ultralytics YOLO-World has an on-demand CLIP auto-install path** that is not declared in its package metadata. First-run inference triggers `uv pip install git+https://github.com/ultralytics/CLIP.git` which can hang for minutes and does not respect offline environments. Workaround documented in `docs/troubleshooting.md`.
 - **Raw `pip install --force-reinstall`** without `--extra-index-url https://download.pytorch.org/whl/cu128` silently replaces the Blackwell-compatible `torch==2.11.0+cu128` wheel with a default CUDA-13 one that fails to run on the RTX 5070 driver (12.8). Documented in `CONTRIBUTING.md`.
 

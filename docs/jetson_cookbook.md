@@ -16,13 +16,13 @@ onboard Jetson Orin NX 16 GB. Run commands from SSH (your laptop) unless marked
 
 ```bash
 # [Jetson]
-sudo nvpmodel -m 0      # MAXN — 25 W sustained
+sudo nvpmodel -m 0      # MAXN, 25 W sustained
 sudo jetson_clocks
 
 # NumPy first (pin for cv_bridge compat)
 pip install "numpy<2.0"
 
-# ML stack — do NOT reinstall torch; the JetPack wheel is already present
+# ML stack: do NOT reinstall torch; the JetPack wheel is already present
 pip install ultralytics open_clip_torch networkx opencv-python pyyaml
 pip install --no-binary=:all: sentencepiece
 pip install git+https://github.com/ChaoningZhang/MobileSAM.git

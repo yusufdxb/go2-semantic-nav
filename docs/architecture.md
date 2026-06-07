@@ -18,9 +18,9 @@ Pure live 3DGS is the wrong core representation on Jetson Orin NX 16 GB at the 2
 1. **Latency.** Online GS with densification takes multi-second updates under thermal throttling. "Near real-time" becomes dishonest.
 2. **Decoupled payload.** GS is *rendering*. The semantic payload that grounds language still comes from a separate VLM (CLIP/OpenCLIP/SigLIP). GS adds cost, not grounding power.
 3. **Wrong evaluation surface.** You end up benchmarking PSNR/SSIM, not navigation success.
-4. **Research family.** ConceptGraphs (ICRA'24), OK-Robot (RSS'24), VLMaps (ICRA'23), HOV-SG (ICCV'23), CLIO — every recent paper that runs on a real robot uses an object-centric semantic graph. That is the active surface.
+4. **Research family.** ConceptGraphs (ICRA'24), OK-Robot (RSS'24), VLMaps (ICRA'23), HOV-SG (ICCV'23), CLIO, every recent paper that runs on a real robot uses an object-centric semantic graph. That is the active surface.
 
-The external story — *"real-time semantic 3D mapping + language-guided quadruped navigation on edge hardware"* — is preserved. The primitive is swapped for one that ships.
+The external story, *"real-time semantic 3D mapping + language-guided quadruped navigation on edge hardware"*, is preserved. The primitive is swapped for one that ships.
 
 ## Package layout
 
@@ -110,10 +110,10 @@ return action result { success, final_goal, chosen_object_id, grounding_score }
 | `/goal_pose` | `geometry_msgs/PoseStamped` | RELIABLE, depth 10 | per accepted grounding |
 
 ### Services
-- `/semantic/query_objects` — `go2_semantic_msgs/srv/QueryObjects`
+- `/semantic/query_objects`: `go2_semantic_msgs/srv/QueryObjects`
 
 ### Actions
-- `/semantic/ground_and_navigate` — `go2_semantic_msgs/action/GroundAndNavigate`
+- `/semantic/ground_and_navigate`: `go2_semantic_msgs/action/GroundAndNavigate`
 
 ### Required TF chain
 `map → odom → base_link → camera_color_optical_frame`
@@ -127,21 +127,21 @@ Backends are chosen via the `detector.yaml` config. Current support:
 ### Detector
 - `yolo_world_v2_s` (ultralytics, ~13 M params; AGPL-3.0)
 - `yolo_world_v2_m` (ultralytics)
-- `yoloe_11s` (ultralytics; AGPL-3.0) — strong Jetson candidate
-- `owlv2_base` (HF `google/owlv2-base-patch16-ensemble`; Apache-2.0) — burst mode
-- `grounding_dino_tiny` (HF `IDEA-Research/grounding-dino-tiny`; Apache-2.0) — offboard only
+- `yoloe_11s` (ultralytics; AGPL-3.0), strong Jetson candidate
+- `owlv2_base` (HF `google/owlv2-base-patch16-ensemble`; Apache-2.0), burst mode
+- `grounding_dino_tiny` (HF `IDEA-Research/grounding-dino-tiny`; Apache-2.0), offboard only
 
 ### Segmenter
-- `mobile_sam` (Apache-2.0) — default on dev
-- `nano_sam` (Apache-2.0) — default on Jetson
-- `efficient_sam_ti` (Apache-2.0) — fallback
-- `sam2_tiny` (Apache-2.0) — burst mode
+- `mobile_sam` (Apache-2.0), default on dev
+- `nano_sam` (Apache-2.0), default on Jetson
+- `efficient_sam_ti` (Apache-2.0), fallback
+- `sam2_tiny` (Apache-2.0), burst mode
 
 ### Encoder
-- `openclip_vit_b16` (MIT) — default on dev
-- `mobileclip_s2` (apple-amlr) — default on Jetson (research use)
-- `siglip_base` (Apache-2.0) — higher zero-shot accuracy
-- `clip_vit_h14` (MIT) — offboard only
+- `openclip_vit_b16` (MIT), default on dev
+- `mobileclip_s2` (apple-amlr), default on Jetson (research use)
+- `siglip_base` (Apache-2.0), higher zero-shot accuracy
+- `clip_vit_h14` (MIT), offboard only
 
 See `docs/deployment.md` for per-backend latency tiers and ONNX/TRT notes.
 
@@ -205,7 +205,7 @@ grounding:
 - Live 3D Gaussian Splatting or NeRF.
 - Custom SLAM (rely on sibling stack's odometry or `slam_toolbox` fallback).
 - Gait control or joint-level command.
-- Audio input path (voice → grounding query happens outside this repo — see `go2_voice_commander` in sibling stack).
+- Audio input path (voice → grounding query happens outside this repo, see `go2_voice_commander` in sibling stack).
 - Multi-robot coordination.
 - End-to-end learned navigation policy.
 
