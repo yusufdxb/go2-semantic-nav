@@ -27,6 +27,8 @@ try:
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    import physx_style as _physx_style  # editorial-print theme
+    _physx_style.apply()
 except ImportError:
     raise SystemExit("matplotlib required: pip install matplotlib")
 
@@ -55,10 +57,11 @@ def plot_latency_per_stage(latency_files: dict[str, dict], out: Path) -> None:
         p50 = [stats.get(s, {}).get("p50", 0.0) for s in stages]
         p95 = [stats.get(s, {}).get("p95", 0.0) for s in stages]
         offset = width * (i - len(platforms) / 2 + 0.5)
-        ax.bar([xi + offset for xi in x], p50, width=width, label=f"{label} p50")
+        ax.bar([xi + offset for xi in x], p50, width=width, label=f"{label} p50",
+               color=_physx_style.cmap_cycle(len(platforms))[i])
         ax.errorbar([xi + offset for xi in x], p50,
                     yerr=[[0] * len(stages), [a - b for a, b in zip(p95, p50)]],
-                    fmt="none", ecolor="black", capsize=3)
+                    fmt="none", ecolor=_physx_style.INK, capsize=3)
     ax.set_xticks(x)
     ax.set_xticklabels([s.replace("latency_", "").replace("_ms", "") for s in stages])
     ax.set_ylabel("latency (ms)")
@@ -136,17 +139,21 @@ def plot_thermal(thermal_csv: Path, out: Path) -> None:
     temp = _col("gpu_temp_c")
     util = _col("gpu_util_pct")
 
+    color_hz = _physx_style.COLORS["physx"]
+    color_temp = _physx_style.COLORS["newton"]
+    color_util = _physx_style.PALETTE[2]
+
     fig, ax1 = plt.subplots(figsize=(10, 5))
-    ax1.plot(t, hz, "g-", label="detection Hz")
+    ax1.plot(t, hz, "-", color=color_hz, label="detection Hz")
     ax1.set_xlabel("elapsed (s)")
-    ax1.set_ylabel("detection Hz", color="g")
-    ax1.tick_params(axis="y", labelcolor="g")
+    ax1.set_ylabel("detection Hz", color=color_hz)
+    ax1.tick_params(axis="y", labelcolor=color_hz)
     ax1.grid(alpha=0.3)
     ax2 = ax1.twinx()
-    ax2.plot(t, temp, "r-", label="GPU temp (°C)")
-    ax2.plot(t, util, "b--", label="GPU util (%)", alpha=0.5)
-    ax2.set_ylabel("GPU temp / util", color="r")
-    ax2.tick_params(axis="y", labelcolor="r")
+    ax2.plot(t, temp, "-", color=color_temp, label="GPU temp (°C)")
+    ax2.plot(t, util, "--", color=color_util, label="GPU util (%)", alpha=0.7)
+    ax2.set_ylabel("GPU temp / util", color=color_temp)
+    ax2.tick_params(axis="y", labelcolor=color_temp)
     lines = ax1.get_lines() + ax2.get_lines()
     ax2.legend(lines, [ln.get_label() for ln in lines], loc="upper right")
     ax1.set_title("Jetson thermal soak")

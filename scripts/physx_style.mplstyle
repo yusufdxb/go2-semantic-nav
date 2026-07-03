@@ -1,0 +1,52 @@
+# physx-newton-bench figure theme (editorial print)
+# Source of truth: physx-newton-bench/scripts/analyze_strengthen.py
+# Apply with:  import matplotlib.pyplot as plt; plt.style.use("<path>/physx_style.mplstyle")
+
+# --- canvas: warm cream, not white ---
+figure.facecolor: fcfcfb
+figure.edgecolor: fcfcfb
+figure.dpi: 160
+savefig.facecolor: fcfcfb
+savefig.edgecolor: fcfcfb
+savefig.dpi: 160
+savefig.bbox: tight
+axes.facecolor: fcfcfb
+
+# --- frame: drop top/right, muted left/bottom ---
+axes.edgecolor: c3c2b7
+axes.linewidth: 1.0
+axes.spines.top: False
+axes.spines.right: False
+
+# --- grid: faint warm gray ---
+axes.grid: True
+axes.axisbelow: True
+grid.color: e1e0d9
+grid.linewidth: 0.8
+grid.alpha: 1.0
+
+# --- text: ink titles, muted labels/ticks ---
+text.color: 0b0b0b
+axes.titlecolor: 0b0b0b
+axes.titlesize: 11
+axes.titleweight: normal
+axes.labelcolor: 52514e
+axes.labelsize: 10
+xtick.color: 898781
+ytick.color: 898781
+xtick.labelcolor: 898781
+ytick.labelcolor: 898781
+xtick.labelsize: 9
+ytick.labelsize: 9
+font.size: 10
+
+# --- lines/markers ---
+lines.linewidth: 2
+lines.markersize: 5
+
+# --- legend: no box ---
+legend.frameon: False
+legend.fontsize: 9
+
+# --- palette: physx blue, newton green, then editorial extensions ---
+axes.prop_cycle: cycler('color', ['2a78d6', '1baf7a', 'd08a2e', 'b0472b', '6a5acd', '52514e'])
