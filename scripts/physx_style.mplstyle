@@ -3,14 +3,14 @@
 # Apply with:  import matplotlib.pyplot as plt; plt.style.use("<path>/physx_style.mplstyle")
 
 # --- canvas: warm cream, not white ---
-figure.facecolor: fcfcfb
-figure.edgecolor: fcfcfb
+figure.facecolor: ffffff
+figure.edgecolor: ffffff
 figure.dpi: 160
-savefig.facecolor: fcfcfb
-savefig.edgecolor: fcfcfb
+savefig.facecolor: ffffff
+savefig.edgecolor: ffffff
 savefig.dpi: 160
 savefig.bbox: tight
-axes.facecolor: fcfcfb
+axes.facecolor: ffffff
 
 # --- frame: drop top/right, muted left/bottom ---
 axes.edgecolor: c3c2b7
@@ -49,4 +49,4 @@ legend.frameon: False
 legend.fontsize: 9
 
 # --- palette: physx blue, newton green, then editorial extensions ---
-axes.prop_cycle: cycler('color', ['2a78d6', '1baf7a', 'd08a2e', 'b0472b', '6a5acd', '52514e'])
+axes.prop_cycle: cycler('color', ['2a78d6', '1baf7a', '52514e', '898781', 'b8b7b0', 'c3c2b7'])

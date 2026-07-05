@@ -15,8 +15,8 @@ _STYLE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "physx_style.m
 
 # Editorial-print ink used for annotations/titles when set explicitly.
 INK = "#0b0b0b"
-CREAM = "#fcfcfb"
-PALETTE = ["#2a78d6", "#1baf7a", "#d08a2e", "#b0472b", "#6a5acd", "#52514e"]
+CREAM = "#ffffff"
+PALETTE = ["#2a78d6", "#1baf7a", "#52514e", "#898781", "#b8b7b0", "#c3c2b7"]
 # Canonical two-backend mapping (physx-newton-bench).
 COLORS = {"physx": "#2a78d6", "newton": "#1baf7a"}
 
