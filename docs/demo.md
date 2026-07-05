@@ -81,7 +81,7 @@ If scene-graph is empty:
 
 - Do not claim "3D Gaussian Splatting", the representation is object-centric scene graph + CLIP.
 - Do not claim "end-to-end learned", grounding has a parser + CLIP scoring + geometric relation resolver, not a policy network.
-- Do not claim latency numbers that were measured on RTX 5070. All reported latency is Jetson 25 W sustained.
+- Do not claim latency numbers that were measured on the Blackwell consumer GPU. All reported latency is Jetson 25 W sustained.
 
 ## Recording setup
 

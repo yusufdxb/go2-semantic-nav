@@ -159,7 +159,7 @@ queries:
 scenes:
   office_a:
     bag: tests/bags/office_a.bag
-    description: mewtwo office, 15 m², mixed clutter, two chairs, one desk
+    description: dev office, 15 m², mixed clutter, two chairs, one desk
   lab_b:
     bag: tests/bags/lab_b.bag
     description: lab common area, 40 m², sofa, coffee table, TV

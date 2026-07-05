@@ -2,7 +2,7 @@
 
 Every number here is **measured on a named platform** and **tied to a reproducible command**. Unknown numbers are marked `<pending>`, not extrapolated.
 
-## 1. Grounding round-trip latency: `mewtwo-5070`
+## 1. Grounding round-trip latency: `dev-gpu`
 
 20-query suite from `eval/queries.yaml` played against `scripts/synthetic_publisher.py` (ultralytics bus.jpg, constant 2 m depth). Two configs:
 
@@ -18,10 +18,10 @@ Every number here is **measured on a named platform** and **tied to a reproducib
 ```bash
 # v2
 python eval/run_eval.py --mode synthetic --warmup-s 15 \
-    --out eval/results/dev_mewtwo_synthetic_v2 --config-name dev_mewtwo_synthetic_v2
+    --out eval/results/dev_gpu_synthetic_v2 --config-name dev_gpu_synthetic_v2
 ```
 
-## 2. Per-stage detector latency: `mewtwo-5070`
+## 2. Per-stage detector latency: `dev-gpu`
 
 50-frame measurement (post-10 warmup) with `scripts/latency_profiler.py`.
 
@@ -33,7 +33,7 @@ python eval/run_eval.py --mode synthetic --warmup-s 15 \
 | back-project (NumPy) | 4.6 | 5.0 | 5.1 | 4.7 |
 | **TOTAL** | **67.7** | **69.0** | **70.8** | **68.1** |
 
-→ **14.7 Hz theoretical upper bound on RTX 5070** with this exact backend stack.
+→ **14.7 Hz theoretical upper bound on the Blackwell consumer GPU** with this exact backend stack.
 
 **Analysis:**
 - Segmenter (MobileSAM) is the dominant cost. On Jetson, NanoSAM (TRT-native) is the highest-leverage swap.
@@ -48,10 +48,10 @@ python3 scripts/synthetic_publisher.py --ros-args -p rate_hz:=8.0
 ros2 launch go2_open_vocab_detector detector.launch.py
 # term 3
 python3 scripts/latency_profiler.py --frames 100 --warmup-frames 20 \
-    --out eval/results/latencies_dev_mewtwo.json
+    --out eval/results/latencies_dev_gpu.json
 ```
 
-## 3. Record-and-replay integration: `mewtwo-5070`: **VERIFIED 2026-04-13**
+## 3. Record-and-replay integration: `dev-gpu`: **VERIFIED 2026-04-13**
 
 `scripts/record_replay_integration_test.py` end-to-end: synthetic publisher → `ros2 bag record` (4 topics) → `ros2 bag play --clock --loop` → in-process detector + scene_graph + grounding (all with `use_sim_time=True`) → grounding action dispatch.
 
@@ -98,4 +98,4 @@ Initial record-replay attempts failed because `ros2 bag play` replays messages a
 3. Each in-process node then has `use_sim_time=True` set explicitly as its first parameter.
 4. The composite `semantic_nav.launch.py` exposes `use_sim_time:=true` as a launch arg that threads through all 3 nodes, robot operators use the same arg for on-hardware replay.
 
-Verified PASS on `mewtwo-5070`: scene graph populated in 1.0 s of replay; grounding action returned valid `PoseStamped`.
+Verified PASS on `dev-gpu`: scene graph populated in 1.0 s of replay; grounding action returned valid `PoseStamped`.

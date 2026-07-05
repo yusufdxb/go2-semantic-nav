@@ -64,7 +64,7 @@ Output JSON structure:
 
 | config | platform | warmup | frames | detector p50/p95 | total p50/p95 | sustained Hz |
 |---|---|---|---|---|---|---|
-| YOLO-World v2-s + MobileSAM + OpenCLIP ViT-B/16 | mewtwo-5070 (250 W, CUDA 12.8) | 100 | 1000 | 22 / 41 ms | 58 / 94 ms | 12.3 Hz |
+| YOLO-World v2-s + MobileSAM + OpenCLIP ViT-B/16 | dev-gpu (250 W, CUDA 12.8) | 100 | 1000 | 22 / 41 ms | 58 / 94 ms | 12.3 Hz |
 | YOLO-World v2-s + NanoSAM + MobileCLIP-S2 | jetson-orin-nx-25w (post-soak) | 100 | 1000 | `<…>` | `<…>` | `<…>` |
 
 (The first row is to be filled with numbers from `run_eval.py --mode synthetic`; the second row requires hardware.)

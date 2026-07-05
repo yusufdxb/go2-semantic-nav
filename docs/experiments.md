@@ -31,7 +31,7 @@ Split: 10 queries for "seen" rooms (used in dev), 10 for "held-out" rooms.
 
 ## Scenes
 
-- **Scene A**: mewtwo office (dev): 15 m², typical indoor objects, good lighting.
+- **Scene A**: dev office: 15 m², typical indoor objects, good lighting.
 - **Scene B**: lab common area (dev): 40 m², mixed clutter.
 - **Scene C**: held-out apartment living room: 25 m².
 
@@ -39,7 +39,7 @@ For the minimum-viable eval, Scene A + Scene C is sufficient.
 
 ## Reproducibility protocol
 
-1. **Hardware declaration**: every reported number names the platform (RTX 5070 vs Jetson Orin NX 25 W) and power mode. Mixing is forbidden.
+1. **Hardware declaration**: every reported number names the platform (Blackwell consumer GPU vs Jetson Orin NX 25 W) and power mode. Mixing is forbidden.
 2. **Warmup**: discard first 100 detector frames; thermal soak 5 min on Jetson before measurement.
 3. **Sample size**: ≥1000 frames for latency; ≥20 queries × 3 trials for grounding.
 4. **Seed discipline**: pin numpy + torch seeds; for CLIP/YOLO models with deterministic inference, log the checksum.

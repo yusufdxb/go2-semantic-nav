@@ -1,4 +1,4 @@
-# Offboard Tier C — RTX 5070 laptop running the heavy stack; robot receives
+# Offboard Tier C — Blackwell consumer GPU running the heavy stack; robot receives
 # detections over DDS on 192.168.123.x. Use when the robot's Jetson is saturated.
 
 go2_open_vocab_detector:

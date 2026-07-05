@@ -1,4 +1,4 @@
-# Dev profile for mewtwo (RTX 5070). Use the largest models we can afford at ~5 Hz.
+# Dev profile for the workstation (Blackwell consumer GPU). Use the largest models we can afford at ~5 Hz.
 
 go2_open_vocab_detector:
   ros__parameters:
