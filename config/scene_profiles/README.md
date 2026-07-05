@@ -5,10 +5,10 @@ Pre-tuned backend + threshold combinations for the three deploy tiers documented
 
 | File | Platform | Intended use |
 |---|---|---|
-| `dev_mewtwo_rtx5070.yaml` | RTX 5070 workstation | Interactive development; biggest model we can afford at ~5 Hz |
+| `dev_gpu.yaml` | Blackwell consumer GPU workstation | Interactive development; biggest model we can afford at ~5 Hz |
 | `jetson_tier_a.yaml` | Jetson Orin NX 25 W | **Default on-robot profile.** 3 Hz sustained with Nav2 headroom |
 | `jetson_tier_b_burst.yaml` | Jetson Orin NX 25 W | Stationary room-scan bursts (higher recall, ~1 Hz) |
-| `offboard_rtx_companion.yaml` | RTX 5070 laptop via DDS | Tier C, heavy stack offboard, robot subscribes |
+| `offboard_rtx_companion.yaml` | Blackwell consumer GPU via DDS | Tier C, heavy stack offboard, robot subscribes |
 
 ## Usage
 

@@ -7,7 +7,7 @@
   "spl": 0.0,
   "latency_ms_p50": 7.534265518188477,
   "latency_ms_p95": 12.009143829345703,
-  "config_name": "dev_mewtwo_synthetic",
+  "config_name": "dev_gpu_synthetic",
   "mode": "synthetic",
   "n_queries": 20
 }

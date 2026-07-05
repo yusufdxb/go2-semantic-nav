@@ -1,7 +1,7 @@
 # Docker for go2-semantic-nav
 
 ## Dev container (`dev.Dockerfile`)
-For x86_64 development on `mewtwo`. Contains ROS 2 Humble + Nav2 + the full Python ML stack.
+For x86_64 development on the dev workstation. Contains ROS 2 Humble + Nav2 + the full Python ML stack.
 
 Build:
 ```bash

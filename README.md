@@ -23,8 +23,8 @@ Live 3DGS optimization with densification does not hit near-real-time on Jetson 
 
 ## System at a glance
 
-- **Target hardware:** NVIDIA Jetson Orin NX 16 GB on Unitree GO2, plus RTX 5070 dev workstation (`mewtwo`).
-- **Target latency budget:** sensor to `/goal_pose` under 100 ms on Jetson at 25 W (dev-workstation pipeline runs at 68 ms total on RTX 5070; Jetson on-robot eval pending).
+- **Target hardware:** NVIDIA Jetson Orin NX 16 GB on Unitree GO2, plus Blackwell consumer GPU dev workstation.
+- **Target latency budget:** sensor to `/goal_pose` under 100 ms on Jetson at 25 W (dev-workstation pipeline runs at 68 ms total on the Blackwell consumer GPU; Jetson on-robot eval pending).
 - **Phase:** Phase 1, scaffold complete, dev-workstation eval landed, robot eval pending.
 - **Eval state:** dev numbers in [`RESULTS.md`](RESULTS.md); on-robot eval not yet run.
 
@@ -118,7 +118,7 @@ flowchart TD
     class YW,MS,OC active
 ```
 
-Bold-outlined backends are the **default dev profile** (YOLO-World v2-s + MobileSAM + OpenCLIP ViT-B/16, measured at 68 ms total on `mewtwo-5070`). The planned **Jetson Tier-A** profile swaps to NanoSAM + MobileCLIP-S2; numbers pending the on-robot run. See [`docs/system_diagram.md`](docs/system_diagram.md) for the full backend plug points view and [`RESULTS.md`](RESULTS.md) for measured latencies.
+Bold-outlined backends are the **default dev profile** (YOLO-World v2-s + MobileSAM + OpenCLIP ViT-B/16, measured at 68 ms total on `dev-gpu`). The planned **Jetson Tier-A** profile swaps to NanoSAM + MobileCLIP-S2; numbers pending the on-robot run. See [`docs/system_diagram.md`](docs/system_diagram.md) for the full backend plug points view and [`RESULTS.md`](RESULTS.md) for measured latencies.
 
 ---
 
@@ -153,7 +153,7 @@ The latency profiler reads timestamps stamped into `SemanticDetectionArray.laten
 
 - **ROS 2 Humble** with `nav2_bringup`
 - **Python 3.10** (matches JetPack 6.x)
-- **PyTorch 2.x with CUDA 12.x** (tested with `torch==2.11.0+cu128` on RTX 5070)
+- **PyTorch 2.x with CUDA 12.x** (tested with `torch==2.11.0+cu128` on the Blackwell consumer GPU)
 - **RealSense camera** publishing on `/camera/...` (same namespace as `go2_perception`)
 - **TF tree** with `map -> odom -> base_link -> camera_color_optical_frame`
 - **For deployment:** a running `GO2-seeing-eye-dog` overlay so Nav2 is up
@@ -230,7 +230,7 @@ See [`NEXT_STEPS.md`](NEXT_STEPS.md) for the ordered Phase 1, 5 checklist with t
 
 ## Known limitations
 
-- **No on-robot numbers yet.** Every Jetson row in [`RESULTS.md`](RESULTS.md) is a placeholder. The dev-workstation 68 ms / 14.7 Hz upper bound on RTX 5070 will **not** transfer 1:1 to Orin NX at 25 W; expect significantly lower sustained throughput.
+- **No on-robot numbers yet.** Every Jetson row in [`RESULTS.md`](RESULTS.md) is a placeholder. The dev-workstation 68 ms / 14.7 Hz upper bound on the Blackwell consumer GPU will **not** transfer 1:1 to Orin NX at 25 W; expect significantly lower sustained throughput.
 - **Ultralytics YOLO-World** auto-installs OpenAI's `clip` package on first inference and can hang for minutes. Pre-install manually in production deploys ([`docs/troubleshooting.md`](docs/troubleshooting.md)).
 - **Torch wheel pinning** is fragile on Blackwell GPUs: any `pip install --force-reinstall` without `--extra-index-url https://download.pytorch.org/whl/cu128` will replace the cu128 wheel with the default CUDA-13 one and break the detector.
 - **Closed-vocab fallback (YOLO baseline)** is intentionally not implemented; the comparison story is against ConceptGraphs / VLMaps style baselines, not detection-only.

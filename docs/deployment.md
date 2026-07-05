@@ -1,8 +1,8 @@
 # Deployment
 
-Two target environments: **dev workstation (`mewtwo`, RTX 5070)** and **robot onboard (Jetson Orin NX 16 GB)**. Configurations, weights, and dependency paths differ; interfaces do not.
+Two target environments: **dev workstation (Blackwell consumer GPU)** and **robot onboard (Jetson Orin NX 16 GB)**. Configurations, weights, and dependency paths differ; interfaces do not.
 
-## Dev: `mewtwo` (RTX 5070, CUDA 12.8)
+## Dev: workstation (Blackwell consumer GPU, CUDA 12.8)
 
 ### One-time setup
 ```bash
@@ -141,10 +141,10 @@ sudo jetson_clocks
 
 ## Offboard companion (optional, Tier C)
 
-If a laptop (mewtwo) is co-located on the GO2's `192.168.123.0/24` LAN, heavier models can run there and publish to the robot over DDS:
+If a companion workstation is co-located on the GO2's `192.168.123.0/24` LAN, heavier models can run there and publish to the robot over DDS:
 
 ```bash
-# On mewtwo: acts as a companion publisher
+# On the workstation: acts as a companion publisher
 export ROS_DOMAIN_ID=7              # match robot's domain
 ros2 launch go2_semantic_bringup detector_offboard.launch.py \
     backend:=grounding_dino_tiny \

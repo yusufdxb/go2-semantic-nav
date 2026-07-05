@@ -87,7 +87,7 @@ Most common culprits (seen in this project's own history):
 
 - **cv_bridge errors about numpy 2.x** → `pip install "numpy<2.0"`.
 - **`ModuleNotFoundError: CLIP`** → `pip install git+https://github.com/openai/CLIP.git`, then immediately `pip install --no-deps --force-reinstall --extra-index-url https://download.pytorch.org/whl/cu128 "torch==2.11.0+cu128"` if it clobbered your torch wheel.
-- **CUDA arch mismatch on RTX 5070** → needs `torch` built for `sm_120` (CUDA 12.8). nvcc 11.5 cannot compile custom extensions; use ONNX + TensorRT instead.
+- **CUDA arch mismatch on the Blackwell consumer GPU** → needs `torch` built for `sm_120` (CUDA 12.8). nvcc 11.5 cannot compile custom extensions; use ONNX + TensorRT instead.
 - **Jetson `libnvinfer.so.10` missing** → reinstall `nvidia-tensorrt` for JetPack 6.x.
 
 If none of those apply, open an issue with:

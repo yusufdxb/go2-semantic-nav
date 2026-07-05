@@ -1,4 +1,4 @@
-# Development container for go2-semantic-nav on x86_64 (mewtwo).
+# Development container for go2-semantic-nav on x86_64.
 # Not for Jetson — the Jetson image uses JetPack 6.x + l4t-pytorch base.
 FROM nvidia/cuda:12.8.0-cudnn-devel-ubuntu22.04
 

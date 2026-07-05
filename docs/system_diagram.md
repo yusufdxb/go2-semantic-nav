@@ -73,7 +73,7 @@ flowchart TD
   classDef active stroke:#9f9,stroke-width:3px
   class YW,MS,OC active
 ```
-Bold-outlined backends are wired into the default profile (`config/scene_profiles/dev_mewtwo_rtx5070.yaml`). Jetson Tier A swaps to `NS` + `MC-S2`.
+Bold-outlined backends are wired into the default profile (`config/scene_profiles/dev_gpu.yaml`). Jetson Tier A swaps to `NS` + `MC-S2`.
 
 ## Goal-generation flow (inside grounding node)
 

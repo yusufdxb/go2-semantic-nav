@@ -25,7 +25,7 @@ Honest eval. 20 well-constructed queries with explicit `easy/medium/hard/expecte
 Deploy profiles in `docs/architecture.md` §"Model backends":
 - **Tier A (primary, onboard Jetson 25 W):** YOLO-World v2-s + NanoSAM + MobileCLIP-S2 @ ≥3 Hz.
 - **Tier B (burst, onboard, stationary scan):** OWLv2-base + SAM 2 tiny + MobileCLIP-S2 @ ~1 Hz.
-- **Tier C (offboard RTX 5070 companion):** Grounding-DINO-B + SAM 2 base+ + OpenCLIP ViT-H/14 via DDS.
+- **Tier C (offboard Blackwell consumer GPU companion):** Grounding-DINO-B + SAM 2 base+ + OpenCLIP ViT-H/14 via DDS.
 
 ## What's the relationship to openvocab-tsdf?
 Sibling project. `openvocab-tsdf` is the desktop-class GPU TSDF + voxel-CLIP side; this repo is the robot-side Jetson-deployable object-centric side. Tier-C offboard companion integration is on the roadmap.
