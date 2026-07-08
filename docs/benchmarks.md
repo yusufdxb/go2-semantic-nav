@@ -82,7 +82,6 @@ All Jetson rows are `<pending>` until we have the hardware in the loop. Blueprin
 
 ## 5. Figures
 
-Produced by `scripts/make_figures.py`:
 - `eval/results/figures/grounding_ablation.png`: top-1 / top-5 / honesty + latency per config
 - `eval/results/figures/latency_per_stage.png`: p50 bar + p95 error-bar per stage per platform
 - `eval/results/figures/thermal_plot.png`: (pending Jetson thermal CSV)
