@@ -23,6 +23,7 @@ from typing import Optional
 
 import numpy as np
 import rclpy
+from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseStamped
 from go2_semantic_msgs.action import GroundAndNavigate
 from go2_semantic_msgs.msg import (
@@ -30,15 +31,17 @@ from go2_semantic_msgs.msg import (
     SceneGraph,
     SemanticObject,
 )
+from nav2_msgs.action import NavigateToPose
 from nav_msgs.msg import OccupancyGrid
 from rcl_interfaces.msg import ParameterDescriptor
-from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 from .goal_sampler import SamplerParams, sample_stand_off
 from .query_parser import ParsedQuery, parse
+from .safety_gates import frame_error, freshness_error, publication_error
 from .scoring import ScoreWeights, combine, cosine_similarity, lexical_label_match
 
 
@@ -49,8 +52,10 @@ def _qos_reliable_depth10() -> QoSProfile:
 
 
 class GroundingNode(Node):
-    def __init__(self) -> None:
-        super().__init__("go2_language_grounding")
+    def __init__(self, *, parameter_overrides=None) -> None:
+        super().__init__(
+            "go2_language_grounding", parameter_overrides=parameter_overrides or []
+        )
 
         # --- parameters ---
         self.declare_parameter("map_frame", "map")
@@ -58,6 +63,10 @@ class GroundingNode(Node):
         self.declare_parameter("costmap_topic", "/global_costmap/costmap")
         self.declare_parameter("goal_pose_topic", "/goal_pose")
         self.declare_parameter("grounding_viz_topic", "/semantic/grounding_viz")
+        self.declare_parameter("navigation_backend", "nav2_action")
+        self.declare_parameter("navigate_to_pose_action", "/navigate_to_pose")
+        self.declare_parameter("navigation_server_timeout_s", 3.0)
+        self.declare_parameter("navigation_cancel_timeout_s", 2.0)
 
         self.declare_parameter("encoder_backend", "openclip_vit_b16")
         self.declare_parameter("device", "cuda:0")
@@ -74,13 +83,16 @@ class GroundingNode(Node):
         self.declare_parameter("retry_with_wider_ring", True)
 
         self.declare_parameter("use_costmap_gate", True)
+        self.declare_parameter("allow_goal_publication", False)
         self.declare_parameter("min_scene_graph_objects", 1)
         self.declare_parameter("max_action_duration_s", 60.0)
+        self.declare_parameter("max_scene_graph_age_s", 3.0)
+        self.declare_parameter("max_costmap_age_s", 3.0)
 
         # Rejection thresholds — see RESULTS.md §"Honest negative results" for the v1→v2 rationale.
         self.declare_parameter("reject_absolute_floor", 0.15)
         self.declare_parameter("reject_label_floor", 0.40)
-        self.declare_parameter("reject_clip_floor", 0.22)
+        self.declare_parameter("reject_clip_floor", 0.30)
         self.declare_parameter("reject_margin_min", 0.0,
                                ParameterDescriptor(description=(
                                    "If >0, require top-1.score - top-2.score >= this margin. "
@@ -91,6 +103,8 @@ class GroundingNode(Node):
         # --- state ---
         self._latest_scene_graph: Optional[SceneGraph] = None
         self._latest_costmap: Optional[OccupancyGrid] = None
+        self._scene_graph_received_ns = 0
+        self._costmap_received_ns = 0
         self._encoder = None
         self._text_cache: dict[str, np.ndarray] = {}
 
@@ -129,6 +143,11 @@ class GroundingNode(Node):
             goal_callback=self._on_goal_request,
             cancel_callback=lambda _goal: CancelResponse.ACCEPT,
         )
+        self._nav_client = ActionClient(
+            self,
+            NavigateToPose,
+            str(self.get_parameter("navigate_to_pose_action").value),
+        )
 
         # Lazy encoder load
         try:
@@ -156,9 +175,56 @@ class GroundingNode(Node):
 
     def _on_scene_graph(self, msg: SceneGraph) -> None:
         self._latest_scene_graph = msg
+        self._scene_graph_received_ns = self.get_clock().now().nanoseconds
 
     def _on_costmap(self, msg: OccupancyGrid) -> None:
         self._latest_costmap = msg
+        self._costmap_received_ns = self.get_clock().now().nanoseconds
+
+    def _runtime_gate_error(self) -> Optional[str]:
+        """Validate cached inputs using receipt time and frame contracts."""
+        now_ns = self.get_clock().now().nanoseconds
+        graph_error = freshness_error(
+            now_ns=now_ns,
+            received_ns=self._scene_graph_received_ns,
+            max_age_s=float(self.get_parameter("max_scene_graph_age_s").value),
+            label="scene graph",
+        )
+        if graph_error:
+            return graph_error
+        if self._latest_scene_graph is None:
+            return "scene graph not received"
+        minimum_objects = max(1, int(self.get_parameter("min_scene_graph_objects").value))
+        object_count = len(self._latest_scene_graph.nodes)
+        if object_count < minimum_objects:
+            return f"scene graph has {object_count} objects; requires {minimum_objects}"
+
+        map_frame = str(self.get_parameter("map_frame").value)
+        graph_frame_error = frame_error(
+            actual=self._latest_scene_graph.header.frame_id,
+            expected=map_frame,
+            label="scene graph",
+        )
+        if graph_frame_error:
+            return graph_frame_error
+
+        if not bool(self.get_parameter("use_costmap_gate").value):
+            return None
+        costmap_error = freshness_error(
+            now_ns=now_ns,
+            received_ns=self._costmap_received_ns,
+            max_age_s=float(self.get_parameter("max_costmap_age_s").value),
+            label="costmap",
+        )
+        if costmap_error:
+            return costmap_error
+        if self._latest_costmap is None:
+            return "costmap not received"
+        return frame_error(
+            actual=self._latest_costmap.header.frame_id,
+            expected=map_frame,
+            label="costmap",
+        )
 
     # ---------------------------------------------------------- encoding
 
@@ -306,8 +372,18 @@ class GroundingNode(Node):
     # ---------------------------------------------------------- action
 
     def _on_goal_request(self, goal_request) -> GoalResponse:
-        if self._latest_scene_graph is None or not self._latest_scene_graph.nodes:
-            self.get_logger().warn("goal rejected: scene graph not yet available")
+        publication_gate_error = publication_error(
+            dry_run=bool(goal_request.dry_run),
+            allow_goal_publication=bool(
+                self.get_parameter("allow_goal_publication").value
+            ),
+        )
+        if publication_gate_error:
+            self.get_logger().warn(f"goal rejected: {publication_gate_error}")
+            return GoalResponse.REJECT
+        runtime_error = self._runtime_gate_error()
+        if runtime_error:
+            self.get_logger().warn(f"goal rejected: {runtime_error}")
             return GoalResponse.REJECT
         if not goal_request.text_query.strip():
             self.get_logger().warn("goal rejected: empty text_query")
@@ -325,11 +401,30 @@ class GroundingNode(Node):
         goal_handle.publish_feedback(fb)
 
     def _execute_action(self, goal_handle):
-        start_ns = time.time_ns()
+        start_ns = time.monotonic_ns()
         req: GroundAndNavigate.Goal = goal_handle.request
+        if goal_handle.is_cancel_requested:
+            return self._cancel_result(goal_handle, start_ns)
+        publication_gate_error = publication_error(
+            dry_run=bool(req.dry_run),
+            allow_goal_publication=bool(
+                self.get_parameter("allow_goal_publication").value
+            ),
+        )
+        if publication_gate_error:
+            return self._abort_result(
+                goal_handle, "PUBLICATION_DISABLED", publication_gate_error, start_ns
+            )
+        runtime_error = self._runtime_gate_error()
+        if runtime_error:
+            return self._abort_result(
+                goal_handle, "INPUTS_UNAVAILABLE", runtime_error, start_ns
+            )
         graph = self._latest_scene_graph
         if graph is None or not graph.nodes:
-            return self._fail_result("GROUNDING_FAILED", "no scene graph available", start_ns)
+            return self._abort_result(
+                goal_handle, "GROUNDING_FAILED", "no scene graph available", start_ns
+            )
 
         parsed = parse(req.text_query)
         if req.preferred_relation:
@@ -340,10 +435,18 @@ class GroundingNode(Node):
 
         candidates = self._score_candidates(parsed, graph, weights)
         if not candidates:
-            return self._fail_result("GROUNDING_FAILED", "no candidates in scene graph", start_ns)
+            return self._abort_result(
+                goal_handle, "GROUNDING_FAILED", "no candidates in scene graph", start_ns
+            )
 
         candidates = self._apply_relation_filter(candidates, parsed, graph)
         self._publish_feedback(goal_handle, "SCORING", candidates, len(graph.nodes))
+        if goal_handle.is_cancel_requested:
+            return self._cancel_result(goal_handle, start_ns)
+        if self._action_timed_out(start_ns, req.timeout_seconds):
+            return self._abort_result(
+                goal_handle, "TIMED_OUT", "grounding action exceeded its time limit", start_ns
+            )
 
         # Three-layer rejection (v2 + optional margin):
         #   1. absolute floor — the total composite must clear a low bar
@@ -357,14 +460,16 @@ class GroundingNode(Node):
         margin_min = float(self.get_parameter("reject_margin_min").value)
 
         if top.score < absolute_floor:
-            return self._fail_result(
+            return self._abort_result(
+                goal_handle,
                 "GROUNDING_FAILED",
                 f"top candidate score {top.score:.3f} below absolute floor {absolute_floor:.2f}",
                 start_ns,
                 final_candidates=candidates[:5],
             )
         if top.score_label < label_floor and top.score_clip < clip_floor:
-            return self._fail_result(
+            return self._abort_result(
+                goal_handle,
                 "GROUNDING_FAILED",
                 (f"top candidate weak on both label ({top.score_label:.2f}<{label_floor:.2f}) "
                  f"and CLIP ({top.score_clip:.2f}<{clip_floor:.2f}); refusing to guess"),
@@ -374,7 +479,8 @@ class GroundingNode(Node):
         if margin_min > 0.0 and len(candidates) >= 2:
             margin = top.score - candidates[1].score
             if margin < margin_min:
-                return self._fail_result(
+                return self._abort_result(
+                    goal_handle,
                     "GROUNDING_FAILED",
                     (f"top-1/top-2 margin {margin:.3f} below required {margin_min:.3f} "
                      "— cannot confidently disambiguate"),
@@ -409,7 +515,8 @@ class GroundingNode(Node):
             map_frame=str(self.get_parameter("map_frame").value),
         )
         if goal_pose is None:
-            return self._fail_result(
+            return self._abort_result(
+                goal_handle,
                 "COSTMAP_UNREACHABLE",
                 "no reachable pose in stand-off ring",
                 start_ns,
@@ -417,26 +524,241 @@ class GroundingNode(Node):
                 chosen=top,
             )
 
-        # Publish (unless dry_run)
-        if not req.dry_run:
-            goal_pose.header.stamp = self.get_clock().now().to_msg()
-            self._pub_goal.publish(goal_pose)
+        if goal_handle.is_cancel_requested:
+            return self._cancel_result(goal_handle, start_ns)
+        if self._action_timed_out(start_ns, req.timeout_seconds):
+            return self._abort_result(
+                goal_handle, "TIMED_OUT", "grounding action exceeded its time limit", start_ns
+            )
 
-        total_s = (time.time_ns() - start_ns) / 1e9
+        if not req.dry_run:
+            return self._dispatch_navigation(
+                goal_handle,
+                goal_pose,
+                candidates,
+                len(graph.nodes),
+                top,
+                start_ns,
+                float(req.timeout_seconds),
+            )
+
+        total_s = (time.monotonic_ns() - start_ns) / 1e9
 
         result = GroundAndNavigate.Result()
         result.success = True
-        result.message = "goal published" if not req.dry_run else "dry-run: goal computed, not published"
+        result.message = "dry-run: goal computed, not dispatched"
         result.final_goal = goal_pose
         result.chosen_object_id = top.object_id
         result.chosen_object_label = top.label
         result.grounding_score = float(top.score)
-        result.terminal_state = "REACHED" if req.dry_run else "NAVIGATING"
+        result.terminal_state = "DRY_RUN_COMPLETE"
         result.total_latency_s = float(total_s)
 
         self._publish_feedback(goal_handle, result.terminal_state, candidates, len(graph.nodes))
         goal_handle.succeed()
         return result
+
+    def _dispatch_navigation(
+        self,
+        goal_handle,
+        goal_pose: PoseStamped,
+        candidates: list[GroundingCandidate],
+        graph_count: int,
+        chosen: GroundingCandidate,
+        start_ns: int,
+        request_timeout_s: float,
+    ) -> GroundAndNavigate.Result:
+        """Dispatch a goal through the configured motion backend."""
+        backend = str(self.get_parameter("navigation_backend").value)
+        goal_pose.header.stamp = self.get_clock().now().to_msg()
+
+        if backend == "goal_pose_topic":
+            self._pub_goal.publish(goal_pose)
+            result = self._success_result(
+                goal_pose,
+                chosen,
+                "goal dispatched to legacy topic; completion is not tracked",
+                "DISPATCHED",
+                start_ns,
+            )
+            self._publish_feedback(goal_handle, "DISPATCHED", candidates, graph_count)
+            goal_handle.succeed()
+            return result
+
+        if backend != "nav2_action":
+            return self._abort_result(
+                goal_handle,
+                "NAV_UNAVAILABLE",
+                f"unknown navigation_backend {backend!r}",
+                start_ns,
+                final_candidates=candidates[:5],
+                chosen=chosen,
+            )
+
+        server_timeout = float(
+            self.get_parameter("navigation_server_timeout_s").value
+        )
+        if not self._nav_client.wait_for_server(timeout_sec=server_timeout):
+            return self._abort_result(
+                goal_handle,
+                "NAV_UNAVAILABLE",
+                "NavigateToPose action server unavailable",
+                start_ns,
+                final_candidates=candidates[:5],
+                chosen=chosen,
+            )
+
+        nav_goal = NavigateToPose.Goal()
+        nav_goal.pose = goal_pose
+
+        def on_nav_feedback(feedback_msg) -> None:
+            distance = float(feedback_msg.feedback.distance_remaining)
+            self._publish_feedback(
+                goal_handle, "NAVIGATING", candidates, graph_count, distance
+            )
+
+        send_future = self._nav_client.send_goal_async(
+            nav_goal, feedback_callback=on_nav_feedback
+        )
+        while rclpy.ok() and not send_future.done():
+            if goal_handle.is_cancel_requested:
+                return self._cancel_result(goal_handle, start_ns)
+            if self._action_timed_out(start_ns, request_timeout_s):
+                return self._abort_result(
+                    goal_handle, "TIMED_OUT", "navigation dispatch timed out", start_ns
+                )
+            time.sleep(0.02)
+
+        nav_handle = send_future.result() if send_future.done() else None
+        if nav_handle is None or not nav_handle.accepted:
+            return self._abort_result(
+                goal_handle,
+                "NAV_REJECTED",
+                "NavigateToPose rejected the goal",
+                start_ns,
+                final_candidates=candidates[:5],
+                chosen=chosen,
+            )
+
+        result_future = nav_handle.get_result_async()
+        while rclpy.ok() and not result_future.done():
+            if goal_handle.is_cancel_requested:
+                cancel_note = self._cancel_navigation(nav_handle)
+                return self._cancel_result(goal_handle, start_ns, cancel_note)
+            runtime_error = self._runtime_gate_error()
+            if runtime_error:
+                cancel_note = self._cancel_navigation(nav_handle)
+                return self._abort_result(
+                    goal_handle,
+                    "INPUTS_UNAVAILABLE",
+                    f"navigation canceled: {runtime_error}; {cancel_note}",
+                    start_ns,
+                    final_candidates=candidates[:5],
+                    chosen=chosen,
+                )
+            if self._action_timed_out(start_ns, request_timeout_s):
+                cancel_note = self._cancel_navigation(nav_handle)
+                return self._abort_result(
+                    goal_handle,
+                    "TIMED_OUT",
+                    f"navigation exceeded its time limit; {cancel_note}",
+                    start_ns,
+                    final_candidates=candidates[:5],
+                    chosen=chosen,
+                )
+            time.sleep(0.02)
+
+        wrapped_result = result_future.result() if result_future.done() else None
+        status = wrapped_result.status if wrapped_result is not None else GoalStatus.STATUS_UNKNOWN
+        if status == GoalStatus.STATUS_SUCCEEDED:
+            result = self._success_result(
+                goal_pose, chosen, "navigation reached goal", "REACHED", start_ns
+            )
+            self._publish_feedback(goal_handle, "REACHED", candidates, graph_count, 0.0)
+            goal_handle.succeed()
+            return result
+        if status == GoalStatus.STATUS_CANCELED:
+            return self._cancel_result(goal_handle, start_ns)
+        return self._abort_result(
+            goal_handle,
+            "NAV_ABORTED",
+            f"NavigateToPose finished with status {status}",
+            start_ns,
+            final_candidates=candidates[:5],
+            chosen=chosen,
+        )
+
+    def _success_result(
+        self,
+        goal_pose: PoseStamped,
+        chosen: GroundingCandidate,
+        message: str,
+        terminal_state: str,
+        start_ns: int,
+    ) -> GroundAndNavigate.Result:
+        result = GroundAndNavigate.Result()
+        result.success = True
+        result.message = message
+        result.final_goal = goal_pose
+        result.chosen_object_id = chosen.object_id
+        result.chosen_object_label = chosen.label
+        result.grounding_score = float(chosen.score)
+        result.terminal_state = terminal_state
+        result.total_latency_s = (time.monotonic_ns() - start_ns) / 1e9
+        return result
+
+    def _action_timed_out(self, start_ns: int, request_timeout_s: float = 0.0) -> bool:
+        configured_limit = float(self.get_parameter("max_action_duration_s").value)
+        limit_s = request_timeout_s if request_timeout_s > 0.0 else configured_limit
+        if configured_limit > 0.0 and limit_s > 0.0:
+            limit_s = min(limit_s, configured_limit)
+        return limit_s > 0.0 and (time.monotonic_ns() - start_ns) / 1e9 > limit_s
+
+    def _abort_result(
+        self,
+        goal_handle,
+        terminal_state: str,
+        message: str,
+        start_ns: int,
+        final_candidates: Optional[list[GroundingCandidate]] = None,
+        chosen: Optional[GroundingCandidate] = None,
+    ) -> GroundAndNavigate.Result:
+        goal_handle.abort()
+        return self._fail_result(
+            terminal_state,
+            message,
+            start_ns,
+            final_candidates=final_candidates,
+            chosen=chosen,
+        )
+
+    def _cancel_navigation(self, nav_handle) -> str:
+        """Cancel the Nav2 goal and wait, bounded, for the server to acknowledge.
+
+        Reporting CANCELED before Nav2 confirms would let a caller believe the
+        robot has stopped while the controller may still be driving.
+        """
+        timeout_s = float(self.get_parameter("navigation_cancel_timeout_s").value)
+        cancel_future = nav_handle.cancel_goal_async()
+        deadline = time.monotonic() + timeout_s
+        while rclpy.ok() and not cancel_future.done() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        response = cancel_future.result() if cancel_future.done() else None
+        if response is not None and response.goals_canceling:
+            return "Nav2 acknowledged cancel"
+        note = (
+            "Nav2 did NOT acknowledge cancel within "
+            f"{timeout_s:.1f}s; motion may continue, use the base stop"
+        )
+        self.get_logger().error(note)
+        return note
+
+    def _cancel_result(
+        self, goal_handle, start_ns: int, note: str = ""
+    ) -> GroundAndNavigate.Result:
+        goal_handle.canceled()
+        message = f"goal canceled; {note}" if note else "goal canceled"
+        return self._fail_result("CANCELED", message, start_ns)
 
     def _fail_result(
         self,
@@ -453,7 +775,7 @@ class GroundingNode(Node):
         result.chosen_object_label = chosen.label if chosen else ""
         result.grounding_score = chosen.score if chosen else 0.0
         result.terminal_state = terminal_state
-        result.total_latency_s = (time.time_ns() - start_ns) / 1e9
+        result.total_latency_s = (time.monotonic_ns() - start_ns) / 1e9
         # final_goal left as default PoseStamped
         return result
 

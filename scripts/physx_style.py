@@ -9,6 +9,7 @@ and the physx-blue / newton-green palette. `PALETTE` and `COLORS` are
 exposed for scripts that need an explicit per-series color.
 """
 import os
+
 import matplotlib.pyplot as plt
 
 _STYLE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "physx_style.mplstyle")

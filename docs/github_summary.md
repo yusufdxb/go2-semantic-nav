@@ -39,7 +39,6 @@ Closed-vocabulary person-following stacks (YOLOv8 on a fixed class list) cannot 
 - [Experiments](docs/experiments.md), eval metrics and reproducibility protocol
 - [Paper outline](docs/paper_outline.md)
 - [Portfolio notes](docs/portfolio_notes.md)
-- [AGENTS.md](AGENTS.md), rules for LLM agents working in this repo
 
 ## Related projects in the same ecosystem
 

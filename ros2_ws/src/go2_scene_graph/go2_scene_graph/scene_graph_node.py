@@ -12,7 +12,7 @@ Also serves /semantic/query_objects for text-grounded lookup without navigation.
 from __future__ import annotations
 
 import traceback
-from typing import Optional
+from collections import deque
 
 import numpy as np
 import rclpy
@@ -51,8 +51,8 @@ def _time_to_msg(ns: int) -> TimeMsg:
 
 
 class SceneGraphNode(Node):
-    def __init__(self) -> None:
-        super().__init__("go2_scene_graph")
+    def __init__(self, *, parameter_overrides=None) -> None:
+        super().__init__("go2_scene_graph", parameter_overrides=parameter_overrides or [])
 
         # --- parameters ---
         self.declare_parameter("map_frame", "map")
@@ -62,6 +62,8 @@ class SceneGraphNode(Node):
         self.declare_parameter("object_markers_topic", "/semantic/object_markers")
         self.declare_parameter("publish_rate_hz", 2.0)
         self.declare_parameter("tf_lookup_timeout_s", 0.1)
+        self.declare_parameter("tf_queue_timeout_s", 2.0)
+        self.declare_parameter("tf_queue_size", 20)
         self.declare_parameter("use_precomputed_map_centroid", True)
 
         # Association params
@@ -87,6 +89,8 @@ class SceneGraphNode(Node):
         # --- TF ---
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(self._tf_buffer, self)
+        self._pending_detections = deque()
+        self._tf_retry_timer = self.create_timer(0.05, self._retry_pending_detections)
 
         # --- IO ---
         self._pub_graph = self.create_publisher(
@@ -145,35 +149,25 @@ class SceneGraphNode(Node):
 
     # -------------------------------------------------------------- TF helper
 
-    def _transform_camera_point_to_map(
+    def _lookup_camera_to_map(
         self,
-        point_xyz: np.ndarray,
         source_frame: str,
         stamp: TimeMsg,
-    ) -> Optional[np.ndarray]:
+        wait: bool = True,
+    ):
         map_frame = str(self.get_parameter("map_frame").value)
-        timeout_s = float(self.get_parameter("tf_lookup_timeout_s").value)
+        # Queued retries never wait: the retry timer shares the default callback
+        # group with the publish timer, so blocking here would starve publishing.
+        timeout_s = float(self.get_parameter("tf_lookup_timeout_s").value) if wait else 0.0
 
         if source_frame == map_frame:
-            return point_xyz
-
-        ps = PointStamped()
-        ps.header.frame_id = source_frame
-        ps.header.stamp = stamp
-        ps.point.x = float(point_xyz[0])
-        ps.point.y = float(point_xyz[1])
-        ps.point.z = float(point_xyz[2])
+            return False
         try:
-            transform = self._tf_buffer.lookup_transform(
+            return self._tf_buffer.lookup_transform(
                 map_frame,
                 source_frame,
                 stamp,
                 timeout=RclDuration(seconds=timeout_s),
-            )
-            transformed = do_transform_point(ps, transform)
-            return np.array(
-                [transformed.point.x, transformed.point.y, transformed.point.z],
-                dtype=np.float32,
             )
         except TransformException as exc:
             self.get_logger().warn(
@@ -182,11 +176,61 @@ class SceneGraphNode(Node):
             )
             return None
 
+    @staticmethod
+    def _apply_transform(point_xyz: np.ndarray, source_frame: str, stamp, transform):
+        if transform is False:
+            return point_xyz
+        ps = PointStamped()
+        ps.header.frame_id = source_frame
+        ps.header.stamp = stamp
+        ps.point.x = float(point_xyz[0])
+        ps.point.y = float(point_xyz[1])
+        ps.point.z = float(point_xyz[2])
+        transformed = do_transform_point(ps, transform)
+        return np.array(
+            [transformed.point.x, transformed.point.y, transformed.point.z],
+            dtype=np.float32,
+        )
+
     # --------------------------------------------------------- callback
 
     def _on_detections(self, msg: SemanticDetectionArray) -> None:
+        if not self._process_detections(msg):
+            queue_size = max(1, int(self.get_parameter("tf_queue_size").value))
+            if len(self._pending_detections) >= queue_size:
+                self._pending_detections.popleft()
+                self.get_logger().warn(
+                    "TF pending queue full; dropped oldest detection frame",
+                    throttle_duration_sec=5.0,
+                )
+            self._pending_detections.append(
+                (msg, self.get_clock().now().nanoseconds)
+            )
+
+    def _retry_pending_detections(self) -> None:
+        timeout_s = float(self.get_parameter("tf_queue_timeout_s").value)
+        now_ns = self.get_clock().now().nanoseconds
+        pending = list(self._pending_detections)
+        self._pending_detections.clear()
+        for msg, queued_at_ns in pending:
+            age_s = (now_ns - queued_at_ns) / 1e9
+            if age_s < 0.0:
+                self.get_logger().warn("ROS clock moved backward; dropped queued detections")
+                continue
+            if timeout_s > 0.0 and age_s > timeout_s:
+                self.get_logger().warn(
+                    "TF unavailable before queue timeout; dropped detection frame",
+                    throttle_duration_sec=5.0,
+                )
+                continue
+            if not self._process_detections(msg, wait_for_tf=False):
+                self._pending_detections.append((msg, queued_at_ns))
+
+    def _process_detections(
+        self, msg: SemanticDetectionArray, wait_for_tf: bool = True
+    ) -> bool:
         if not msg.detections:
-            return
+            return True
 
         # Refresh params on each message (cheap).
         self._store.update_params(**vars(self._load_association_params()))
@@ -195,6 +239,17 @@ class SceneGraphNode(Node):
         use_precomputed = bool(self.get_parameter("use_precomputed_map_centroid").value)
         stamp_ns = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
         source_frame = msg.source_frame_id or msg.header.frame_id
+        requires_tf = any(
+            not (use_precomputed and det.centroid_3d_map_valid)
+            for det in msg.detections
+        )
+        transform = (
+            self._lookup_camera_to_map(source_frame, msg.header.stamp, wait=wait_for_tf)
+            if requires_tf
+            else False
+        )
+        if requires_tf and transform is None:
+            return False
 
         ingested = 0
         for det in msg.detections:
@@ -216,9 +271,9 @@ class SceneGraphNode(Node):
                 )
                 if not np.isfinite(p_cam).all():
                     continue
-                p_map = self._transform_camera_point_to_map(p_cam, source_frame, msg.header.stamp)
-                if p_map is None:
-                    continue
+                p_map = self._apply_transform(
+                    p_cam, source_frame, msg.header.stamp, transform
+                )
 
             dims = np.array(
                 [det.dimensions_xyz.x, det.dimensions_xyz.y, det.dimensions_xyz.z],
@@ -246,6 +301,7 @@ class SceneGraphNode(Node):
             self.get_logger().debug(
                 f"scene graph: +{ingested} detections, {len(self._store)} objects"
             )
+        return True
 
     # --------------------------------------------------------- snapshot
 

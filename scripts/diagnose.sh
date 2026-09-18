@@ -5,7 +5,7 @@
 #   - nodes, topics, services, actions
 #   - TF tree
 #   - per-topic rates for the required set
-#   - lifecycle state of each semantic-nav node
+#   - selected runtime parameters for each semantic-nav node
 #   - last 200 log lines per ~/.ros/log/latest/*
 #
 # Usage:
@@ -15,10 +15,13 @@
 set -euo pipefail
 
 OUT="${1:-/tmp/go2-semantic-nav-diag-$(date +%Y%m%d_%H%M%S)}"
+COLOR_TOPIC="${COLOR_TOPIC:-/camera/color/image_raw}"
+DEPTH_TOPIC="${DEPTH_TOPIC:-/camera/depth/image_rect_raw}"
+CAMERA_INFO_TOPIC="${CAMERA_INFO_TOPIC:-/camera/color/camera_info}"
 mkdir -p "$OUT"
 echo "[diagnose] writing bundle to $OUT"
 
-# Ensure ROS is sourced — idempotent.
+# Ensure ROS is sourced (idempotent).
 if [[ -z "${ROS_DISTRO:-}" ]]; then
   source /opt/ros/humble/setup.bash
 fi
@@ -29,9 +32,14 @@ fi
   date -Iseconds
   echo "=== ros env ==="
   env | grep -E "^ROS_|^RMW_|^DOMAIN|^FASTRTPS_|^CYCLONEDDS_" | sort
-  echo "=== user env ==="
-  env | grep -E "^CUDA|^PATH|^LD_LIBRARY|^PYTHONPATH" | sort
+  echo "=== CUDA availability ==="
+  command -v nvcc >/dev/null && nvcc --version | tail -1 || echo "nvcc unavailable"
 } > "$OUT/00_env.txt" 2>&1
+
+# --- Source revision, without collecting remotes or local paths ---
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+git -C "$REPO_ROOT" rev-parse HEAD > "$OUT/03_revision.txt" 2>&1 || true
+git -C "$REPO_ROOT" status --short >> "$OUT/03_revision.txt" 2>&1 || true
 
 # --- nvidia-smi / tegrastats if available ---
 (nvidia-smi > "$OUT/01_gpu.txt" 2>&1) || echo "no nvidia-smi" > "$OUT/01_gpu.txt"
@@ -46,11 +54,12 @@ timeout 5 ros2 action list > "$OUT/13_actions.txt" 2>&1 || true
 # --- Required topic health ---
 {
   for topic in \
-      /camera/color/image_raw \
-      /camera/depth/image_rect_raw \
-      /camera/color/camera_info \
+      "$COLOR_TOPIC" \
+      "$DEPTH_TOPIC" \
+      "$CAMERA_INFO_TOPIC" \
       /semantic/detections \
       /semantic/scene_graph \
+      /global_costmap/costmap \
       /goal_pose; do
     echo "=== hz $topic (5s) ==="
     timeout 5 ros2 topic hz "$topic" 2>&1 | head -8 || true
@@ -72,12 +81,12 @@ for topic in /semantic/detections /semantic/scene_graph /goal_pose; do
   echo >> "$OUT/40_qos.txt"
 done
 
-# --- Lifecycle probe (works on nodes that implement the lifecycle interface) ---
+# --- Runtime configuration (these are standard nodes, not lifecycle nodes) ---
 for node in go2_open_vocab_detector go2_scene_graph go2_language_grounding; do
-  echo "=== lifecycle $node ===" >> "$OUT/41_lifecycle.txt"
-  timeout 3 ros2 lifecycle get "/$node" >> "$OUT/41_lifecycle.txt" 2>&1 || \
-    echo "(not a lifecycle node / not present)" >> "$OUT/41_lifecycle.txt"
-  echo >> "$OUT/41_lifecycle.txt"
+  echo "=== parameters $node ===" >> "$OUT/41_parameters.txt"
+  timeout 5 ros2 param dump "/$node" >> "$OUT/41_parameters.txt" 2>&1 || \
+    echo "(node not present)" >> "$OUT/41_parameters.txt"
+  echo >> "$OUT/41_parameters.txt"
 done
 
 # --- Logs from ~/.ros/log/latest/ ---
@@ -100,5 +109,4 @@ fi
 tar czf "$OUT.tgz" -C "$(dirname "$OUT")" "$(basename "$OUT")"
 echo "[diagnose] bundled at $OUT.tgz"
 echo
-echo "Attach $OUT.tgz when filing an issue. Contains no secrets unless your"
-echo "ROS_DOMAIN_ID or log lines do; inspect 00_env.txt + 50_logs/ before sharing."
+echo "Inspect ROS settings, parameter values, and log lines before sharing this bundle."

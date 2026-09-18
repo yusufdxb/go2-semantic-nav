@@ -6,6 +6,11 @@ go2_language_grounding:
     costmap_topic: /global_costmap/costmap
     goal_pose_topic: /goal_pose
     grounding_viz_topic: /semantic/grounding_viz
+    navigation_backend: nav2_action
+    navigate_to_pose_action: /navigate_to_pose
+    navigation_server_timeout_s: 3.0
+    # Bounded wait for Nav2 to confirm a cancel before reporting CANCELED.
+    navigation_cancel_timeout_s: 2.0
 
     # Encoder (must match detector's embedding dim for CLIP cosine to be meaningful)
     encoder_backend: openclip_vit_b16
@@ -25,5 +30,12 @@ go2_language_grounding:
     retry_with_wider_ring: true
 
     use_costmap_gate: true
+    # Hardware safety interlock. Keep false until the base navigation stack is validated.
+    allow_goal_publication: false
     min_scene_graph_objects: 1
     max_action_duration_s: 60.0
+    max_scene_graph_age_s: 3.0
+    # Receipt-time freshness. Nav2 must publish the full costmap on every update
+    # (always_send_full_costmap: true, the stock nav2_params.yaml value); with
+    # updates-only publishing this gate goes stale and rejects every goal.
+    max_costmap_age_s: 3.0

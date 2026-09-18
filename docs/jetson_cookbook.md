@@ -1,146 +1,105 @@
-# Jetson deployment cookbook
+# Jetson hardware cookbook
 
-Hands-on checklist for bringing go2-semantic-nav up on a Unitree GO2 with an
-onboard Jetson Orin NX 16 GB. Run commands from SSH (your laptop) unless marked
-`[Jetson]`.
+This checklist ends at a motors-disabled dry-run. Motored navigation has a separate acceptance gate.
 
-## 0. Preconditions
+## 1. Preconditions
 
-- [ ] Jetson is flashed with JetPack 6.x per `go2-jetson-setup-guide`.
-- [ ] Jetson has a static `192.168.123.15/24` and pings `192.168.123.161`.
-- [ ] `GO2-seeing-eye-dog` is cloned at `~/ros2_ws/src/GO2-seeing-eye-dog` and `colcon build` succeeded for it.
-- [ ] RealSense driver is running and publishing `/camera/color/image_raw` at ≥15 Hz.
-- [ ] Laptop is sharing internet to the Jetson (follow `docs/05-internet-sharing.md` from the setup guide).
+- [ ] The operator has physical access, a clear test area, and a tested emergency stop.
+- [ ] The current lab-approved network path reaches both compute and robot endpoints.
+- [ ] JetPack, ROS 2, and the NVIDIA PyTorch build are installed and compatible.
+- [ ] An external RGB-D camera is physically mounted and enumerates on the Jetson.
+- [ ] NanoSAM engine files exist if the NanoSAM profile will be used.
+- [ ] The base workspace builds. No claim is made yet that its navigation path is hardware-ready.
 
-## 1. Install deps on the Jetson
-
-```bash
-# [Jetson]
-sudo nvpmodel -m 0      # MAXN, 25 W sustained
-sudo jetson_clocks
-
-# NumPy first (pin for cv_bridge compat)
-pip install "numpy<2.0"
-
-# ML stack: do NOT reinstall torch; the JetPack wheel is already present
-pip install ultralytics open_clip_torch networkx opencv-python pyyaml
-pip install --no-binary=:all: sentencepiece
-pip install git+https://github.com/ChaoningZhang/MobileSAM.git
-```
-
-For NanoSAM (preferred segmenter on Orin NX):
+## 2. Build and static checks
 
 ```bash
-# [Jetson]
-cd ~ && git clone --depth 1 https://github.com/NVIDIA-AI-IOT/nanosam.git
-cd nanosam && pip install -e .
-# Follow nanosam/README.md to build the two TRT engines:
-# - resnet18_image_encoder.engine
-# - mobile_sam_mask_decoder.engine
-# Copy both to ~/nanosam/data/
-```
-
-## 2. Clone and build go2-semantic-nav
-
-```bash
-# [Jetson]
-mkdir -p ~/go2_ws_overlay/src
-cd ~/go2_ws_overlay/src
-git clone https://github.com/<owner>/go2-semantic-nav.git .
-cd ~/go2_ws_overlay
+cd <repo>
 source /opt/ros/humble/setup.bash
-source ~/ros2_ws/install/setup.bash   # sibling seeing-eye-dog overlay
+source <base-workspace>/install/setup.bash
+
+python3 -m pip install -r requirements.txt
+cd ros2_ws
 colcon build --symlink-install --packages-up-to go2_semantic_bringup
 source install/setup.bash
+ros2 launch go2_semantic_bringup semantic_nav.launch.py --show-args
 ```
 
-## 3. Prefetch model weights (while still on laptop-shared internet)
+Do not reinstall PyTorch unless following the NVIDIA instructions for the exact JetPack release.
+
+## 3. Discover live interfaces
 
 ```bash
-# [Jetson]
-python3 scripts/prefetch_models.py --backends yolo_world_v2_s,mobile_sam,openclip_vit_b16
+ros2 topic list -t
+ros2 node list
+ros2 topic hz <color-image-topic>
+ros2 topic hz <aligned-depth-topic>
+ros2 topic echo <color-camera-info-topic> --once
+ros2 run tf2_ros tf2_echo map <color-optical-frame>
 ```
 
-## 4. Export TensorRT engines (one-time per model × device)
+Pass criteria:
+
+- color and aligned depth are sustained, not one-shot
+- color, depth, and camera info use compatible dimensions and the same optical frame
+- `map` to camera TF is current and continuous
+- there are no competing publishers on the same semantic output topics
+
+## 4. Start perception with motors disabled
 
 ```bash
-# [Jetson]
-# YOLO-World with our indoor prompt set baked in (fixed-vocab, faster)
-python3 scripts/export_yolo_world_trt.py \
-    --model yolov8s-worldv2.pt \
-    --prompts ros2_ws/src/go2_open_vocab_detector/config/prompts_indoor.yaml \
-    --out-onnx models/yolo_world_v2_s.onnx \
-    --out-engine models/yolo_world_v2_s.engine \
-    --fp16
-
-# OpenCLIP image encoder
-python3 scripts/export_openclip_trt.py \
-    --model ViT-B-16 --pretrained laion2b_s34b_b88k \
-    --out-onnx models/openclip_vit_b16_image.onnx \
-    --out-engine models/openclip_vit_b16_image.engine \
-    --fp16 --obey-precision
-```
-
-## 5. Launch the overlay
-
-```bash
-# [Jetson] with seeing-eye-dog bringup already running in another terminal
-source ~/go2_ws_overlay/install/setup.bash
+PROFILE="$(ros2 pkg prefix go2_semantic_bringup)/share/go2_semantic_bringup/config/scene_profiles/jetson_tier_a.yaml"
 
 ros2 launch go2_semantic_bringup semantic_nav.launch.py \
-    device:=cuda:0 \
-    backend:=yolo_world_v2_s \
-    segmenter:=nano_sam \
-    encoder:=openclip_vit_b16 \
-    detection_rate_hz:=3.0 \
-    publish_rate_hz:=2.0
+  detector_params:="$PROFILE" \
+  scene_graph_params:="$PROFILE" \
+  grounding_params:="$PROFILE" \
+  image_topic:=<color-image-topic> \
+  depth_topic:=<aligned-depth-topic> \
+  camera_info_topic:=<color-camera-info-topic> \
+  require_aligned_depth:=true \
+  allow_goal_publication:=false \
+  enable_grounding:=false \
+  use_rviz:=false
 ```
 
-## 6. Verify in RViz on the laptop
+Confirm `/semantic/detections` and `/semantic/scene_graph` are sustained and inspect their frame IDs, positions, labels, latency fields, and memory use.
+
+## 5. Dry-run grounding
+
+Only enable grounding after a fresh global costmap exists in `map`:
 
 ```bash
-# [Laptop]
-source /opt/ros/humble/setup.bash
-export ROS_DOMAIN_ID=<match-robot>
-ros2 topic hz /semantic/detections      # ~3 Hz
-ros2 topic hz /semantic/scene_graph     # ~2 Hz
-rviz2 -d $(ros2 pkg prefix go2_semantic_bringup)/share/go2_semantic_bringup/rviz/semantic_nav.rviz
-```
-
-## 7. Fire a grounding action
-
-```bash
-# [Laptop]
+ros2 topic hz /global_costmap/costmap
 ros2 action send_goal /semantic/ground_and_navigate \
-    go2_semantic_msgs/action/GroundAndNavigate \
-    "{text_query: 'go near the chair', stand_off_m: 0.9, dry_run: true}" \
-    --feedback
+  go2_semantic_msgs/action/GroundAndNavigate \
+  "{text_query: 'go near the chair', stand_off_m: 0.9, dry_run: true}" \
+  --feedback
 ```
 
-Expected feedback progression: `PARSING → SCORING → SAMPLING_GOAL → REACHED` (in dry-run mode). Result includes `chosen_object_label`, `grounding_score`, and `final_goal` in the `map` frame.
+Pass criteria:
 
-## 8. Thermal soak + sustained-rate benchmark
+- stale or missing scene graphs are rejected
+- stale, missing, or wrong-frame costmaps are rejected
+- unknown and ambiguous targets fail without a goal
+- a valid request returns a `map`-frame pose
+- `/goal_pose` remains silent because `allow_goal_publication` is false
 
-```bash
-# [Jetson]
-# Run for 10 min under load, log tegrastats in parallel.
-tegrastats --interval 1000 --logfile /tmp/tegrastats.log &
-# Keep the bringup running in another shell for the full 10 min.
-# Then stop:
-pkill tegrastats
-```
+Capture the session with `scripts/record_demo_bag.sh` and `scripts/diagnose.sh`.
 
-Validate:
-- detection FPS sustained ≥3 Hz after 5 min thermal soak
-- GPU temp < 85 °C
-- no thermal-throttling events in `/var/log/syslog`
+## 6. Thermal evidence
 
-## 9. Troubleshooting
+Run the target workload long enough to reach thermal steady state. Record power mode, clocks, temperatures, throttling flags, memory use, and sustained detector rate. Do not publish performance numbers until they come from this run.
 
-See `docs/troubleshooting.md`. Jetson-specific gotchas:
+## 7. Separate motion acceptance gate
 
-- `libnvinfer.so.10` missing → reinstall `nvidia-tensorrt` for JetPack 6.x
-- `sentencepiece` import error → rebuild from source (`pip install sentencepiece --no-binary=:all:`)
-- NanoSAM import error → engine files not at `~/nanosam/data/`; set `NANOSAM_ENCODER_ENGINE` and `NANOSAM_DECODER_ENGINE` env vars
-- MobileCLIP import error on Jetson → use OpenCLIP ViT-B/16 (same embedding dim, broader ecosystem)
-- Thermal throttling under sustained load → lower `detection_rate_hz` to 2.0 or switch to `nvpmodel -m 1` (15 W) and accept lower FPS
+Do not set `allow_goal_publication:=true` until the base stack independently proves:
+
+- continuous odometry and `map -> odom -> base_link` TF
+- localization or mapping appropriate to the environment
+- live obstacle data feeding the global and local costmaps
+- a consumer for `/goal_pose` with observable success, abort, and cancel behavior
+- operator stop, communications-loss stop, and stale-data stop behavior
+- low-speed bounded tests before semantic goals are introduced
+
+Once those pass, enable publication explicitly for the supervised motion session. The interlock is intentionally off by default on every launch.

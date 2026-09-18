@@ -11,10 +11,10 @@ ros2 pkg list | grep go2_ | sort
 # Are our nodes running?
 ros2 node list | grep /go2_
 
-# Lifecycle state of each
+# Selected parameters for each standard node
 for n in go2_open_vocab_detector go2_scene_graph go2_language_grounding; do
     echo "== $n =="
-    ros2 lifecycle get /$n
+    ros2 param dump /$n
 done
 
 # Topic health
@@ -35,14 +35,14 @@ ros2 topic info --verbose /camera/color/image_raw
 
 ### Detector subscribes but publishes nothing
 - **Check 1:** camera topic hz > 0. If not, the RealSense driver isn't running.
-- **Check 2:** `ros2 lifecycle get /go2_open_vocab_detector` is `active`, not `inactive` or `unconfigured`.
+- **Check 2:** `ros2 node list` contains `/go2_open_vocab_detector` and its log has no backend-load error.
 - **Check 3:** logs show `YOLO-World weights loaded`: if stuck, the weights download is probably blocked (no internet on Jetson? share via laptop).
-- **Fix:** `ros2 lifecycle set /go2_open_vocab_detector configure` then `activate`.
+- **Fix:** correct the backend or model configuration, then restart the launch process.
 
 ### Detector CPU-bound, no GPU utilization
 - **Check:** `nvidia-smi` (dev) or `tegrastats` (Jetson) shows GPU 0%.
 - **Cause:** `device` param defaulted to `cpu`, or the weight file is a CPU variant.
-- **Fix:** `ros2 param set /go2_open_vocab_detector device cuda:0`, then deactivate+activate.
+- **Fix:** set `device:=cuda:0` at launch and restart the process.
 
 ### Scene graph has no objects in `map` frame
 - **Symptom:** `ros2 topic echo /semantic/scene_graph` shows empty `nodes`.
@@ -58,9 +58,9 @@ ros2 topic info --verbose /camera/color/image_raw
 - **Fix 2:** use the explicit attribute form `"the {color} {noun}"` consistently in the query.
 
 ### Goal pose is inside an obstacle
-- **Cause:** costmap subscription not up yet, so the reachability filter is a no-op.
+- **Cause:** the costmap is absent, stale, or uses the wrong frame. Grounding fails closed in this state.
 - **Check:** `ros2 topic hz /global_costmap/costmap`.
-- **Fix:** wait for Nav2 lifecycle to be `active`, or add a startup synchronization in the launch file.
+- **Fix:** repair the base navigation stack and confirm a fresh `map`-frame costmap before retrying.
 
 ### Action returns success=false for a reasonable query
 - **Cause 1:** `stand_off_m` too small, no free pose in the ring.
@@ -104,7 +104,7 @@ ros2 topic info --verbose /camera/color/image_raw
 
 ### Grounding returns `success=True` with an obviously wrong object
 - **Cause:** Raw CLIP cosine similarity between unrelated text and image crops sits in [0.15, 0.25]. A single `total_score >= 0.15` gate accepts any detection as "good enough" for any query.
-- **Fix (already in code):** the two-layer rejection in `grounding_node._execute_action` combines an absolute score floor with a `(label_floor OR clip_floor)` secondary gate. Tune `label_floor` (default 0.40) and `clip_floor` (default 0.22) via params if you see the opposite problem, legitimate matches being refused.
+- **Fix (already in code):** the two-layer rejection in `grounding_node._execute_action` combines an absolute score floor with a `(label_floor OR clip_floor)` secondary gate. Tune `label_floor` (default 0.40) and `clip_floor` (default 0.30) only against labeled recorded data.
 
 ### `torch` silently downgraded after `pip install --force-reinstall <anything>`
 - **Cause:** pip's index resolution picks the default PyPI wheel (CUDA 13 suffix) over the cu128 one unless `--extra-index-url https://download.pytorch.org/whl/cu128` is passed on every reinstall.

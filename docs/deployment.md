@@ -1,172 +1,123 @@
 # Deployment
 
-Two target environments: **dev workstation (Blackwell consumer GPU)** and **robot onboard (Jetson Orin NX 16 GB)**. Configurations, weights, and dependency paths differ; interfaces do not.
+The first hardware milestone is a motors-disabled perception and grounding run. This repository is not sufficient by itself for motored navigation.
 
-## Dev: workstation (Blackwell consumer GPU, CUDA 12.8)
+## Readiness boundary
 
-### One-time setup
+The semantic overlay requires these external contracts:
+
+- aligned color and depth images plus color camera intrinsics
+- TF from the color optical frame to `map`
+- a current global costmap in `map` when `use_costmap_gate` is enabled
+- for motion only: proven odometry, robot TF, localization or mapping, a `/goal_pose` consumer, and an independently tested stop path
+
+The current sibling base stack has not yet proven all motion contracts. Keep motors disabled and `allow_goal_publication:=false` until those contracts are demonstrated on hardware.
+
+## Workstation setup
+
 ```bash
-# Source the sibling seeing-eye-dog workspace first (for go2_msgs + nav2 overlay)
-source ~/ros2_ws/install/setup.bash
+source /opt/ros/humble/setup.bash
+source <base-workspace>/install/setup.bash
 
-# Create Python venv for this project's ML deps
-cd ~/Projects/personal/go2-semantic-nav
+cd <repo>
 python3 -m venv .venv
 source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements.txt
 
-# Build the ROS 2 workspace
 cd ros2_ws
-colcon build --symlink-install
-source install/setup.bash
-
-# Smoke test: should show 5 packages
-ros2 pkg list | grep go2_
-```
-
-### Running with a rosbag
-```bash
-# Terminal A: sibling stack (sim or real camera driver)
-ros2 launch go2_bringup go2_full.launch.py use_sim:=true
-
-# Terminal B: rosbag play (pre-recorded indoor scene)
-ros2 bag play ~/data/go2-indoor-sample/ --loop
-
-# Terminal C: this stack
-ros2 launch go2_semantic_bringup semantic_nav.launch.py \
-    device:=cuda:0 \
-    backend:=yolo_world_v2_s \
-    encoder:=openclip_vit_b16
-```
-
-### First-run model downloads
-On first launch the nodes pull weights to `~/.cache/...`:
-
-- YOLO-World: `ultralytics` cache → `~/.config/Ultralytics/`
-- MobileSAM: HuggingFace cache → `~/.cache/huggingface/`
-- OpenCLIP: `open_clip_torch` cache → `~/.cache/clip/` or `~/.cache/huggingface/`
-
-Pre-seed offline environments by running `python scripts/prefetch_models.py`.
-
-## Robot onboard: Jetson Orin NX 16 GB (JetPack 6.x)
-
-### One-time setup (on the Jetson, via SSH from laptop)
-```bash
-# Confirm JetPack 6.x and CUDA 12.x
-cat /etc/nv_tegra_release
-nvcc --version
-
-# ROS 2 Humble from apt (see go2-jetson-setup-guide repo for full path)
-# Clone this repo under ~/go2_ws_overlay/src/
-mkdir -p ~/go2_ws_overlay/src && cd ~/go2_ws_overlay/src
-git clone git@github.com:<owner>/go2-semantic-nav.git
-cd ~/go2_ws_overlay && ln -s src/go2-semantic-nav/ros2_ws/src . 2>/dev/null || true
-
-# PyTorch on Jetson: use NVIDIA's wheel, NOT pip default
-# https://forums.developer.nvidia.com/t/pytorch-for-jetson/72048
-pip install --extra-index-url https://download.pytorch.org/whl/cu128 \
-    torch==2.3.0 torchvision==0.18.0
-
-# ML deps: note: skip mobile_sam on Jetson if using NanoSAM
-pip install ultralytics open_clip_torch transformers networkx open3d
-
-# sentencepiece: build from source on aarch64
-pip install sentencepiece --no-binary=:all:
-
-# Build the overlay
-source /opt/ros/humble/setup.bash
-source ~/ros2_ws/install/setup.bash       # sibling seeing-eye-dog overlay
-cd ~/go2_ws_overlay
-colcon build --symlink-install
+colcon build --symlink-install --packages-up-to go2_semantic_bringup
 source install/setup.bash
 ```
 
-### TensorRT export (offline, once per backend)
+## Jetson setup
+
+Use the NVIDIA PyTorch build matched to the installed JetPack release. Do not install a generic desktop CUDA wheel. Verify the platform installation before adding project dependencies:
 
 ```bash
-# YOLO-World v2-s → ONNX → TRT FP16
-python scripts/export_yolo_world_trt.py \
-    --model yolov8s-worldv2.pt \
-    --prompts config/prompts_indoor.yaml \
-    --out models/yolo_world_v2_s_indoor.engine \
-    --fp16
-
-# OpenCLIP image encoder → ONNX → TRT FP16
-python scripts/export_openclip_trt.py \
-    --model ViT-B-16 \
-    --pretrained laion2b_s34b_b88k \
-    --out models/openclip_vit_b16.engine \
-    --fp16
-
-# MobileSAM → ONNX → TRT FP16 (decoder is single-prompt; encoder batched)
-python scripts/export_mobilesam_trt.py \
-    --checkpoint models/mobile_sam.pt \
-    --out-encoder models/mobilesam_encoder.engine \
-    --out-decoder models/mobilesam_decoder.engine
+python3 - <<'PY'
+import torch
+print(torch.__version__)
+print(torch.cuda.is_available())
+PY
 ```
 
-**Gotchas captured from research:**
-- YOLO-World with dynamic text-token dim: **re-parameterize to fixed vocab before ONNX export** via `model.set_classes(names); model.save()`. Otherwise the TRT engine must be rebuilt on every vocab change.
-- NanoSAM pre-built engines target JP5; on JP6 rebuild from ONNX with explicit static shapes: `trtexec --onnx=... --fp16 --shapes=image:1x3x1024x1024`.
-- Grounding-DINO TRT needs the `MultiScaleDeformableAttn` plugin which is not in stock L4T TRT 10.x. Not recommended for on-robot use.
-- OpenCLIP ViT-L/14 TRT: force FP16 precision constraints to avoid GELU precision fallback: `--precisionConstraints=obey --layerPrecisions=*:fp16`.
-- SigLIP text tokenizer requires `sentencepiece` from-source build on aarch64.
-
-### Launching on the robot
-```bash
-source ~/go2_ws_overlay/install/setup.bash
-
-# Launch with Jetson backend profile
-ros2 launch go2_semantic_bringup semantic_nav.launch.py \
-    device:=cuda:0 \
-    backend:=yolo_world_v2_s \
-    segmenter:=nano_sam \
-    encoder:=mobileclip_s2 \
-    use_tensorrt:=true \
-    detection_rate_hz:=3.0
-```
-
-### Power mode
-Set the Jetson to 25 W sustained before benchmarking or demos:
-```bash
-sudo nvpmodel -m 0      # MAXN (25 W on Orin NX 16 GB)
-sudo jetson_clocks
-```
-
-### Known constraints
-- 25 W sustained budget → detector + SAM + CLIP + scene graph must fit in ≤200 ms/frame at 3-5 Hz with Nav2 headroom.
-- OpenCV + cv_bridge pin `numpy<2.0`. Do not let `pip install` bump it.
-- `mobile_sam` pip package is x86-friendly; on Jetson prefer direct checkpoint + NanoSAM TRT engines.
-
-## Offboard companion (optional, Tier C)
-
-If a companion workstation is co-located on the GO2's `192.168.123.0/24` LAN, heavier models can run there and publish to the robot over DDS:
+Then clone and build the repository directly:
 
 ```bash
-# On the workstation: acts as a companion publisher
-export ROS_DOMAIN_ID=7              # match robot's domain
-ros2 launch go2_semantic_bringup detector_offboard.launch.py \
-    backend:=grounding_dino_tiny \
-    encoder:=clip_vit_h14
-```
+git clone https://github.com/yusufdxb/go2-semantic-nav.git
+cd go2-semantic-nav
+python3 -m pip install "numpy<2.0" ultralytics open_clip_torch networkx pyyaml
 
-On the robot, disable the onboard detector and subscribe to the companion's `/semantic/detections`:
-```bash
-ros2 launch go2_semantic_bringup semantic_nav.launch.py \
-    use_offboard_detector:=true
-```
-
-This shifts detection compute off the Jetson while keeping scene-graph state and grounding onboard where it gates Nav2 goals.
-
-## Uninstall / disable
-
-To run the seeing-eye-dog stack without this overlay:
-```bash
-# Just do not source this overlay
 source /opt/ros/humble/setup.bash
-source ~/ros2_ws/install/setup.bash
-ros2 launch go2_bringup go2_full.launch.py
+source <base-workspace>/install/setup.bash
+cd ros2_ws
+colcon build --symlink-install --packages-up-to go2_semantic_bringup
+source install/setup.bash
 ```
 
-No residual state is left behind because this overlay does not modify any file in the sibling workspace.
+Preload model weights while network access is available:
+
+```bash
+cd <repo>
+python3 scripts/prefetch_models.py
+```
+
+## Camera discovery
+
+Topic names differ between RealSense driver versions. Discover the live names instead of assuming the defaults:
+
+```bash
+ros2 topic list -t | grep -E 'camera|image|camera_info'
+ros2 topic hz <color-image-topic>
+ros2 topic hz <aligned-depth-topic>
+ros2 topic echo <color-camera-info-topic> --once
+```
+
+Depth must already be registered to the color optical frame. The detector rejects mismatched frames or image dimensions by default.
+
+## Backend reality
+
+The standard YOLO-World and OpenCLIP backends currently run through their PyTorch implementations. The export scripts produce benchmarking artifacts, but those engines are not consumed by the runtime backends. Do not claim TensorRT acceleration for them.
+
+NanoSAM is the available TensorRT-native segmentation path. It requires both engine files before startup:
+
+```bash
+export NANOSAM_ENCODER_ENGINE=<path>/resnet18_image_encoder.engine
+export NANOSAM_DECODER_ENGINE=<path>/mobile_sam_mask_decoder.engine
+test -r "$NANOSAM_ENCODER_ENGINE"
+test -r "$NANOSAM_DECODER_ENGINE"
+```
+
+## Motors-disabled first launch
+
+Use one installed scene profile for all three nodes, remap the discovered camera topics, and leave goal publication disabled:
+
+```bash
+source /opt/ros/humble/setup.bash
+source <base-workspace>/install/setup.bash
+source <repo>/ros2_ws/install/setup.bash
+
+PROFILE="$(ros2 pkg prefix go2_semantic_bringup)/share/go2_semantic_bringup/config/scene_profiles/jetson_tier_a.yaml"
+
+ros2 launch go2_semantic_bringup semantic_nav.launch.py \
+  detector_params:="$PROFILE" \
+  scene_graph_params:="$PROFILE" \
+  grounding_params:="$PROFILE" \
+  image_topic:=<color-image-topic> \
+  depth_topic:=<aligned-depth-topic> \
+  camera_info_topic:=<color-camera-info-topic> \
+  require_aligned_depth:=true \
+  allow_goal_publication:=false \
+  detection_rate_hz:=3.0
+```
+
+If the validated base stack is not publishing a current global costmap, disable grounding for the perception-only portion with `enable_grounding:=false`. Do not bypass the costmap gate to simulate navigation readiness.
+
+## Optional offboard detector
+
+A companion workstation can publish `/semantic/detections` over a lab-approved DDS configuration. Launch the onboard stack with `enable_detector:=false`. Network and DDS settings are deployment-specific and must not be committed to this public repository.
+
+## Disable the overlay
+
+Stop the launch process and source only the base workspace. This repository does not modify the sibling workspace.

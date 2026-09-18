@@ -12,6 +12,29 @@ from dataclasses import dataclass
 import numpy as np
 
 
+def rgbd_alignment_error(
+    *,
+    color_frame: str,
+    depth_frame: str,
+    info_frame: str,
+    color_shape: tuple[int, int],
+    depth_shape: tuple[int, int],
+    info_shape: tuple[int, int],
+) -> str | None:
+    """Return an error unless depth and intrinsics are aligned to the color image."""
+    if not color_frame or depth_frame != color_frame or info_frame != color_frame:
+        return (
+            "RGB, depth, and camera_info must share the color optical frame; "
+            f"got color={color_frame!r}, depth={depth_frame!r}, info={info_frame!r}"
+        )
+    if depth_shape != color_shape or info_shape != color_shape:
+        return (
+            "RGB, depth, and camera_info dimensions must match; "
+            f"got color={color_shape}, depth={depth_shape}, info={info_shape}"
+        )
+    return None
+
+
 @dataclass(frozen=True)
 class CameraIntrinsics:
     fx: float
@@ -93,8 +116,10 @@ def object_centroid_3d(
     v_mean = float(np.mean(ys))
     centroid = backproject_pixel(u_mean, v_mean, depth_m, intr)
 
-    u_min, u_max = float(np.min(xs)), float(np.max(xs))
-    v_min, v_max = float(np.min(ys)), float(np.max(ys))
+    # Pixel indices are pixel centres; a mask covering columns [u_min, u_max]
+    # spans (u_max - u_min + 1) pixels, from edge u_min - 0.5 to edge u_max + 0.5.
+    u_min, u_max = float(np.min(xs)) - 0.5, float(np.max(xs)) + 0.5
+    v_min, v_max = float(np.min(ys)) - 0.5, float(np.max(ys)) + 0.5
     p_min = backproject_pixel(u_min, v_min, depth_m, intr)
     p_max = backproject_pixel(u_max, v_max, depth_m, intr)
     dims_xy = np.abs(p_max - p_min)

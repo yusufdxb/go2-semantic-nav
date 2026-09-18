@@ -22,6 +22,16 @@ testpaths = [
     "ros2_ws/src/go2_semantic_bringup/test",
     "eval",
 ]
+# Each ROS package has a test/ dir with no __init__.py; importlib mode keeps the
+# identically-named dirs from colliding, and pythonpath exposes the package
+# sources so tests run without a colcon install.
+addopts = "--import-mode=importlib -p no:launch_testing -p no:launch_ros"
+pythonpath = [
+    "ros2_ws/src/go2_open_vocab_detector",
+    "ros2_ws/src/go2_scene_graph",
+    "ros2_ws/src/go2_language_grounding",
+    "ros2_ws/src/go2_semantic_bringup",
+]
 python_files = ["test_*.py"]
 filterwarnings = [
     "ignore::DeprecationWarning",

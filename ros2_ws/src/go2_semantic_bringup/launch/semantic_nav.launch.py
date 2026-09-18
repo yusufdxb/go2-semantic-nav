@@ -10,11 +10,16 @@ Args:
   segmenter         : segmenter backend id ("mobile_sam", "nano_sam", ...)
   encoder           : CLIP backend id ("openclip_vit_b16", "mobileclip_s2", ...)
   prompt_classes_file : optional YAML with open-vocab prompts (override)
+  image_topic        : aligned color image topic
+  depth_topic        : depth image aligned to the color optical frame
+  camera_info_topic  : color camera intrinsics topic
   detection_rate_hz : detector timer rate
   publish_rate_hz   : scene-graph publish rate
   enable_detector   : set false to use an offboard detector
   enable_scene_graph: set false to skip scene graph (debug)
   enable_grounding  : set false to skip grounding action server
+  allow_goal_publication : hardware safety interlock, default false
+  navigation_backend : nav2_action or legacy goal_pose_topic
   use_rviz          : launch RViz with the provided preset
   log_level         : default info
 """
@@ -48,13 +53,20 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument("segmenter", default_value="mobile_sam"),
         DeclareLaunchArgument("encoder", default_value="openclip_vit_b16"),
         DeclareLaunchArgument("prompt_classes_file", default_value=""),
+        DeclareLaunchArgument("image_topic", default_value="/camera/color/image_raw"),
+        DeclareLaunchArgument("depth_topic", default_value="/camera/depth/image_rect_raw"),
+        DeclareLaunchArgument("camera_info_topic", default_value="/camera/color/camera_info"),
+        DeclareLaunchArgument("require_aligned_depth", default_value="true"),
         DeclareLaunchArgument("detection_rate_hz", default_value="5.0"),
         DeclareLaunchArgument("publish_rate_hz", default_value="2.0"),
         DeclareLaunchArgument("enable_detector", default_value="true"),
         DeclareLaunchArgument("enable_scene_graph", default_value="true"),
         DeclareLaunchArgument("enable_grounding", default_value="true"),
+        DeclareLaunchArgument("allow_goal_publication", default_value="false"),
+        DeclareLaunchArgument("navigation_backend", default_value="nav2_action"),
+        DeclareLaunchArgument("navigate_to_pose_action", default_value="/navigate_to_pose"),
         DeclareLaunchArgument("use_slam_fallback", default_value="false",
-                              description="If true, launch slam_toolbox to produce map→odom TF when /odom is unavailable"),
+                              description="Launch slam_toolbox only when scan and odom-to-base TF already exist"),
         DeclareLaunchArgument("use_rviz", default_value="false"),
         DeclareLaunchArgument("rviz_config", default_value=default_rviz),
         DeclareLaunchArgument("detector_params", default_value=default_detector_yaml),
@@ -79,6 +91,11 @@ def generate_launch_description() -> LaunchDescription:
                 "segmenter_backend": LaunchConfiguration("segmenter"),
                 "encoder_backend": LaunchConfiguration("encoder"),
                 "detection_rate_hz": LaunchConfiguration("detection_rate_hz"),
+                "prompt_classes_file": LaunchConfiguration("prompt_classes_file"),
+                "image_topic": LaunchConfiguration("image_topic"),
+                "depth_topic": LaunchConfiguration("depth_topic"),
+                "camera_info_topic": LaunchConfiguration("camera_info_topic"),
+                "require_aligned_depth": LaunchConfiguration("require_aligned_depth"),
                 "use_sim_time": LaunchConfiguration("use_sim_time"),
             },
         ],
@@ -114,6 +131,9 @@ def generate_launch_description() -> LaunchDescription:
             {
                 "device": LaunchConfiguration("device"),
                 "encoder_backend": LaunchConfiguration("encoder"),
+                "allow_goal_publication": LaunchConfiguration("allow_goal_publication"),
+                "navigation_backend": LaunchConfiguration("navigation_backend"),
+                "navigate_to_pose_action": LaunchConfiguration("navigate_to_pose_action"),
                 "use_sim_time": LaunchConfiguration("use_sim_time"),
             },
         ],

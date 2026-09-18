@@ -36,7 +36,9 @@ from .depth_backproject import (
     CameraIntrinsics,
     mask_rle_encode,
     object_centroid_3d,
+    rgbd_alignment_error,
 )
+from .prompt_config import load_prompt_classes
 from .qos_profiles import camera_image_qos, camera_info_qos, semantic_reliable_qos
 
 _DEFAULT_PROMPTS = [
@@ -60,8 +62,10 @@ _DEFAULT_PROMPTS = [
 
 
 class DetectorNode(Node):
-    def __init__(self) -> None:
-        super().__init__("go2_open_vocab_detector")
+    def __init__(self, *, parameter_overrides=None) -> None:
+        super().__init__(
+            "go2_open_vocab_detector", parameter_overrides=parameter_overrides or []
+        )
 
         # --- parameters ---
         self.declare_parameter("detector_backend", "yolo_world_v2_s")
@@ -74,9 +78,11 @@ class DetectorNode(Node):
         self.declare_parameter("min_depth_m", 0.2)
         self.declare_parameter("max_depth_m", 8.0)
         self.declare_parameter("prompts", _DEFAULT_PROMPTS)
+        self.declare_parameter("prompt_classes_file", "")
         self.declare_parameter("image_topic", "/camera/color/image_raw")
         self.declare_parameter("depth_topic", "/camera/depth/image_rect_raw")
         self.declare_parameter("camera_info_topic", "/camera/color/camera_info")
+        self.declare_parameter("require_aligned_depth", True)
         self.declare_parameter("sync_slop_sec", 0.05)
         self.declare_parameter("mask_downsample", 1)
         self.declare_parameter(
@@ -141,6 +147,9 @@ class DetectorNode(Node):
         enc_name = str(self.get_parameter("encoder_backend").value)
         device = str(self.get_parameter("device").value)
         prompts = [str(p) for p in self.get_parameter("prompts").value]
+        prompt_classes_file = str(self.get_parameter("prompt_classes_file").value).strip()
+        if prompt_classes_file:
+            prompts = load_prompt_classes(prompt_classes_file)
 
         self._detector = make_detector(det_name)
         self._segmenter = make_segmenter(seg_name)
@@ -163,6 +172,11 @@ class DetectorNode(Node):
                 pass
             if "prompts" in names and self._detector is not None:
                 prompts = [str(p) for p in next(p for p in params if p.name == "prompts").value]
+                self._detector.set_prompts(prompts)
+                self._prompts_cache = prompts
+            if "prompt_classes_file" in names and self._detector is not None:
+                path = str(next(p for p in params if p.name == "prompt_classes_file").value)
+                prompts = load_prompt_classes(path)
                 self._detector.set_prompts(prompts)
                 self._prompts_cache = prompts
             self._update_rate_limit()
@@ -206,6 +220,21 @@ class DetectorNode(Node):
                 f"{self._intr.width}x{self._intr.height}"
             )
 
+        color_h, color_w = color_bgr.shape[:2]
+        depth_h, depth_w = depth_mm.shape
+        if bool(self.get_parameter("require_aligned_depth").value):
+            alignment_error = rgbd_alignment_error(
+                color_frame=color_msg.header.frame_id,
+                depth_frame=depth_msg.header.frame_id,
+                info_frame=info_msg.header.frame_id,
+                color_shape=(color_h, color_w),
+                depth_shape=(depth_h, depth_w),
+                info_shape=(info_msg.height, info_msg.width),
+            )
+            if alignment_error:
+                self.get_logger().error(alignment_error, throttle_duration_sec=5.0)
+                return
+
         conf_threshold = float(self.get_parameter("conf_threshold").value)
         max_objects = int(self.get_parameter("max_objects_per_frame").value)
         min_depth_m = float(self.get_parameter("min_depth_m").value)
@@ -226,8 +255,6 @@ class DetectorNode(Node):
         # Align depth to color spatially: if depth and color have different sizes,
         # the RealSense driver typically publishes an aligned depth stream. If not,
         # scale masks to the depth image shape.
-        depth_h, depth_w = depth_mm.shape
-        color_h, color_w = color_bgr.shape[:2]
         if (depth_h, depth_w) != (color_h, color_w):
             depth_mm_r = cv2.resize(
                 depth_mm, (color_w, color_h), interpolation=cv2.INTER_NEAREST

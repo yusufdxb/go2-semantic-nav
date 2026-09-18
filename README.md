@@ -8,7 +8,7 @@
 
 Speak or type a natural-language target, *"go stand next to the red chair"*, *"move near the window"*, *"approach the table beside the couch"*, and the robot builds an open-vocabulary 3D scene graph online, grounds the query against it, computes a reachable goal pose, and hands off to the existing Nav2 stack for execution.
 
-This repository is a modular **overlay** on top of the [`GO2-seeing-eye-dog`](https://github.com/yusufdxb/GO2-seeing-eye-dog) autonomy stack. It does not replace any existing nodes; it subscribes to the RealSense camera topics, publishes `/goal_pose` in the `map` frame, and leaves Nav2, the gait controller, and the safety monitor untouched.
+This repository is a modular **overlay** intended to integrate with the [`GO2-seeing-eye-dog`](https://github.com/yusufdxb/GO2-seeing-eye-dog) autonomy stack. It does not replace any existing nodes. The semantic pipeline can be validated independently in dry-run mode. Motion requires a separately validated base stack that provides odometry, the `map -> odom -> base_link` TF chain, a current global costmap, and a consumer for `/goal_pose`.
 
 ---
 
@@ -56,29 +56,29 @@ Source tree under `ros2_ws/src/` matches this table 1:1.
 
 ### What each package actually does
 
-- **RealSense D435i (GO2) inputs:**
+- **Aligned RGB-D camera inputs (topic names are configurable):**
   - `/camera/color/image_raw`
   - `/camera/depth/image_rect_raw`
   - `/camera/color/camera_info`
-- **`go2_open_vocab_detector` (rclpy lifecycle):**
+- **`go2_open_vocab_detector` (rclpy node):**
   - YOLO-World v2 / YOLOE for open-vocab boxes
   - MobileSAM / NanoSAM for mask per box
   - OpenCLIP / MobileCLIP for per-object embed
   - depth back-projection for 3D centroid
   - publishes `/semantic/detections`
-- **`go2_scene_graph` (rclpy lifecycle):**
+- **`go2_scene_graph` (rclpy node):**
   - TF from `camera_color_optical_frame` to `map`
   - data-association and merge across frames
   - publishes `/semantic/scene_graph`
   - publishes `/semantic/object_markers` (RViz)
   - serves `/semantic/query_objects`
-- **`go2_language_grounding` (rclpy lifecycle):**
+- **`go2_language_grounding` (rclpy node):**
   - query parser plus CLIP text encode
   - spatial relation resolver
   - costmap-aware stand-off goal sampling
   - action `/semantic/ground_and_navigate`
-  - publishes `/goal_pose` to Nav2
-- **existing Nav2 + `go2_gait_controller`:** unchanged, lives in the [`GO2-seeing-eye-dog`](https://github.com/yusufdxb/GO2-seeing-eye-dog) overlay.
+  - publishes `/goal_pose` only when `allow_goal_publication` is explicitly enabled
+- **base navigation:** external dependency. It is not started or validated by this repository.
 
 ---
 
@@ -156,7 +156,7 @@ The latency profiler reads timestamps stamped into `SemanticDetectionArray.laten
 - **PyTorch 2.x with CUDA 12.x** (tested with `torch==2.11.0+cu128` on the Blackwell consumer GPU)
 - **RealSense camera** publishing on `/camera/...` (same namespace as `go2_perception`)
 - **TF tree** with `map -> odom -> base_link -> camera_color_optical_frame`
-- **For deployment:** a running `GO2-seeing-eye-dog` overlay so Nav2 is up
+- **For motion:** a proven base navigation stack with odometry, TF, localization or mapping, a global costmap, and `/goal_pose` handling
 
 Install Python ML deps into the colcon workspace venv:
 
@@ -190,7 +190,7 @@ ros2 action send_goal /semantic/ground_and_navigate \
     --feedback
 ```
 
-`dry_run: true` computes and returns the goal pose without publishing to Nav2. Drop it to trigger navigation.
+`dry_run: true` computes and returns the goal pose without publishing it. Non-dry-run requests are rejected by default. Enable `allow_goal_publication:=true` only after the base navigation and stop path have passed their own hardware checks.
 
 ## Documentation
 
@@ -206,14 +206,13 @@ ros2 action send_goal /semantic/ground_and_navigate \
 | [`docs/troubleshooting.md`](docs/troubleshooting.md) | Common failure modes and fixes |
 | [`RESULTS.md`](RESULTS.md) | Measured numbers per platform (dev + Jetson when available) |
 | [`CHANGELOG.md`](CHANGELOG.md) | Per-release changes and discovered failure modes |
-| [`AGENTS.md`](AGENTS.md) | Rules for agents working in this repo |
 
 ## Project status
 
 **Phase 1: scaffold complete, dev-workstation eval landed, robot eval pending.**
 
 What is done:
-- 5 ROS 2 packages build clean; lifecycle nodes wired end to end.
+- 5 ROS 2 packages build clean; standard ROS nodes are wired end to end.
 - 9 detector backends, 4 segmenters, 3 encoder families pluggable through `factory.py` (see [`CHANGELOG.md`](CHANGELOG.md)).
 - Two-layer grounding rejection (absolute floor + label/clip floor) replaces the v1 single-threshold gate after the synthetic-scene false-positive failure mode (documented in [`RESULTS.md`](RESULTS.md)).
 - Latency profiler + thermal benchmark + rosbag-backed eval harness in place.
@@ -224,9 +223,10 @@ What is **not** done:
 - Robot-side eval on Jetson Orin NX (25 W and 15 W rows in [`RESULTS.md`](RESULTS.md) are still `<...>` placeholders).
 - Real indoor rosbag suite. Current grounding numbers are on a synthetic single-image scene (`bus.jpg`), useful only as a sanity / honesty signal.
 - Navigation success rate (SR) and SPL: harness exists, numbers not yet captured.
+- Motored navigation integration. The sibling stack must first prove odometry, robot TF, localization or mapping, global costmap publication, goal handling, and emergency stop behavior.
 - Margin-based grounding gate. Deferred to Phase 5 post-rosbag eval; the current two-layer gate still lets one out-of-vocab query slip through (see [`RESULTS.md`](RESULTS.md) "Discovered" entry).
 
-See [`NEXT_STEPS.md`](NEXT_STEPS.md) for the ordered Phase 1, 5 checklist with time estimates.
+The safe next milestone is a motors-disabled RGB-D and dry-run grounding session. See the deployment cookbook for the evidence checklist.
 
 ## Known limitations
 

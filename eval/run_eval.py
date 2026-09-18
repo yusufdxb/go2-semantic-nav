@@ -40,7 +40,12 @@ sys.path.insert(0, str(Path(__file__).parent))
 from metrics import QueryOutcome, summarize  # noqa: E402
 
 
-def _spawn_fixture(mode: str, bag_path: Optional[str], publisher_script: Path) -> Optional[subprocess.Popen]:
+def _spawn_fixture(
+    mode: str,
+    bag_path: Optional[str],
+    publisher_script: Path,
+    bag_rate: float,
+) -> Optional[subprocess.Popen]:
     if mode == "synthetic":
         print(f"[eval] launching synthetic publisher: {publisher_script}")
         return subprocess.Popen(
@@ -53,7 +58,16 @@ def _spawn_fixture(mode: str, bag_path: Optional[str], publisher_script: Path) -
             raise SystemExit("--bag is required when mode=rosbag")
         print(f"[eval] launching rosbag play: {bag_path}")
         return subprocess.Popen(
-            ["ros2", "bag", "play", bag_path, "--loop"],
+            [
+                "ros2",
+                "bag",
+                "play",
+                bag_path,
+                "--loop",
+                "--rate",
+                str(bag_rate),
+                "--disable-keyboard-controls",
+            ],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
     raise SystemExit(f"unknown mode: {mode}")
@@ -64,6 +78,12 @@ def main() -> int:
     ap.add_argument("--queries", default="eval/queries.yaml")
     ap.add_argument("--mode", default="synthetic", choices=["synthetic", "rosbag"])
     ap.add_argument("--bag", default=None)
+    ap.add_argument(
+        "--bag-rate",
+        type=float,
+        default=1.0,
+        help="Playback speed. Use less than 1 when inference cannot keep up in real time.",
+    )
     ap.add_argument("--out", default="eval/results/latest")
     ap.add_argument("--config-name", default="dev_default")
     ap.add_argument("--warmup-s", type=float, default=20.0)
@@ -72,8 +92,19 @@ def main() -> int:
     ap.add_argument("--segmenter", default="mobile_sam")
     ap.add_argument("--encoder", default="openclip_vit_b16")
     ap.add_argument("--device", default="cuda:0")
+    ap.add_argument("--image-topic", default="/camera/color/image_raw")
+    ap.add_argument("--depth-topic", default="/camera/depth/image_rect_raw")
+    ap.add_argument("--camera-info-topic", default="/camera/color/camera_info")
+    ap.add_argument("--map-frame", default="map")
+    ap.add_argument(
+        "--use-sim-time",
+        action="store_true",
+        help="Use /clock from the bag. Required when recorded stamps are not wall time.",
+    )
     ap.add_argument("--dry-run", action="store_true", default=True)
     args = ap.parse_args()
+    if args.bag_rate <= 0.0:
+        ap.error("--bag-rate must be greater than zero")
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -87,7 +118,7 @@ def main() -> int:
 
     repo_root = Path(__file__).resolve().parents[1]
     pub_script = repo_root / "scripts" / "synthetic_publisher.py"
-    pub_proc = _spawn_fixture(args.mode, args.bag, pub_script)
+    pub_proc = None
 
     try:
         import rclpy
@@ -101,29 +132,42 @@ def main() -> int:
 
         rclpy.init()
 
-        detector = DetectorNode()
-        detector.set_parameters([
+        common_overrides = []
+        if args.use_sim_time:
+            common_overrides.append(
+                p_mod.Parameter("use_sim_time", p_mod.Parameter.Type.BOOL, True)
+            )
+        detector = DetectorNode(parameter_overrides=common_overrides + [
             p_mod.Parameter("detector_backend", p_mod.Parameter.Type.STRING, args.detector),
             p_mod.Parameter("segmenter_backend", p_mod.Parameter.Type.STRING, args.segmenter),
             p_mod.Parameter("encoder_backend", p_mod.Parameter.Type.STRING, args.encoder),
             p_mod.Parameter("device", p_mod.Parameter.Type.STRING, args.device),
+            p_mod.Parameter("image_topic", p_mod.Parameter.Type.STRING, args.image_topic),
+            p_mod.Parameter("depth_topic", p_mod.Parameter.Type.STRING, args.depth_topic),
+            p_mod.Parameter(
+                "camera_info_topic", p_mod.Parameter.Type.STRING, args.camera_info_topic
+            ),
         ])
-        scene_graph = SceneGraphNode()
-        scene_graph.set_parameters([
+        scene_graph = SceneGraphNode(parameter_overrides=common_overrides + [
             p_mod.Parameter("min_observations_to_publish", p_mod.Parameter.Type.INTEGER, 1),
             p_mod.Parameter("assoc_embed_threshold", p_mod.Parameter.Type.DOUBLE, 0.5),
             p_mod.Parameter("publish_rate_hz", p_mod.Parameter.Type.DOUBLE, 4.0),
+            p_mod.Parameter("map_frame", p_mod.Parameter.Type.STRING, args.map_frame),
         ])
-        grounding = GroundingNode()
-        grounding.set_parameters([
+        grounding = GroundingNode(parameter_overrides=common_overrides + [
             p_mod.Parameter("encoder_backend", p_mod.Parameter.Type.STRING, args.encoder),
             p_mod.Parameter("device", p_mod.Parameter.Type.STRING, args.device),
             p_mod.Parameter("use_costmap_gate", p_mod.Parameter.Type.BOOL, False),
+            p_mod.Parameter("map_frame", p_mod.Parameter.Type.STRING, args.map_frame),
         ])
 
         executor = MultiThreadedExecutor()
         for n in (detector, scene_graph, grounding):
             executor.add_node(n)
+
+        # Start recorded or synthetic inputs only after every subscriber and TF
+        # listener exists, so one-shot /tf_static data cannot be missed.
+        pub_proc = _spawn_fixture(args.mode, args.bag, pub_script, args.bag_rate)
 
         print(f"[eval] warmup {args.warmup_s:.0f} s for scene graph to populate ...")
         start = time.time()
