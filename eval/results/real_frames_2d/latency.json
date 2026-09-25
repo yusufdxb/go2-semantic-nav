@@ -1,0 +1,23 @@
+{
+  "detector": {
+    "n": 54,
+    "p50_ms": 4.1960635,
+    "p95_ms": 4.7046852999999995
+  },
+  "segmenter": {
+    "n": 54,
+    "p50_ms": 50.888894,
+    "p95_ms": 77.41772949999998
+  },
+  "encoder": {
+    "n": 54,
+    "p50_ms": 27.459968,
+    "p95_ms": 54.64116489999997
+  },
+  "total": {
+    "n": 54,
+    "p50_ms": 82.90635899993504,
+    "p95_ms": 136.16509255043633
+  },
+  "_note": "workstation GPU (dev_gpu profile), NOT Jetson; 960x540 input; first 3 frames excluded"
+}

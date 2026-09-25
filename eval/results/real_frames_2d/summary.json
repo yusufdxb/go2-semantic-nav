@@ -1,0 +1,228 @@
+{
+  "n_queries": 682,
+  "n_present": 209,
+  "n_absent": 473,
+  "arms": {
+    "ungated": {
+      "present_success": 0.5454545454545454,
+      "absent_refusal": 0.0,
+      "ba": 0.2727272727272727
+    },
+    "gate": {
+      "present_success": 0.5406698564593302,
+      "absent_refusal": 1.0,
+      "ba": 0.7703349282296651
+    },
+    "oracle": {
+      "present_success": 0.5454545454545454,
+      "absent_refusal": 1.0,
+      "ba": 0.7727272727272727
+    },
+    "sham": {
+      "present_success": 0.10585124505606827,
+      "absent_refusal": 0.8390791834704282,
+      "ba": 0.4724652142632482
+    }
+  },
+  "primary_gate_minus_sham": 0.29786971396641687,
+  "a7_dose_check": {
+    "c0915sync": {
+      "gate_refusal_rate": 0.7794117647058824,
+      "sham_realised_rate": 0.7786397058823529
+    },
+    "a0914ccw": {
+      "gate_refusal_rate": 0.9178571428571428,
+      "sham_realised_rate": 0.9169339285714286
+    },
+    "b0915lr": {
+      "gate_refusal_rate": 0.7744360902255639,
+      "sham_realised_rate": 0.7743496240601503
+    }
+  },
+  "sham_ba_monte_carlo": 0.47177442416824306,
+  "ci_block_60s": {
+    "unit": "block",
+    "n_units": 15,
+    "n_boot_valid": 10000,
+    "gate_minus_sham_ci95": [
+      0.2477647772253983,
+      0.34496555419294495
+    ],
+    "oracle_minus_gate_ci95": [
+      0.0,
+      0.007653061224489724
+    ]
+  },
+  "ci_viewpoint": {
+    "unit": "viewpoint",
+    "n_units": 9,
+    "n_boot_valid": 10000,
+    "gate_minus_sham_ci95": [
+      0.2038246077771568,
+      0.3723613397066356
+    ],
+    "oracle_minus_gate_ci95": [
+      0.0,
+      0.00877192982456132
+    ]
+  },
+  "exploratory": {
+    "per_class": {
+      "backpack": {
+        "n_present": 0,
+        "n_absent": 1,
+        "top1_box_correct": null,
+        "gate_present_success": null,
+        "gate_accept_rate_present": null,
+        "gate_absent_refusal": 1.0
+      },
+      "bed": {
+        "n_present": 0,
+        "n_absent": 57,
+        "top1_box_correct": null,
+        "gate_present_success": null,
+        "gate_accept_rate_present": null,
+        "gate_absent_refusal": 1.0
+      },
+      "bicycle": {
+        "n_present": 0,
+        "n_absent": 57,
+        "top1_box_correct": null,
+        "gate_present_success": null,
+        "gate_accept_rate_present": null,
+        "gate_absent_refusal": 1.0
+      },
+      "bookshelf": {
+        "n_present": 8,
+        "n_absent": 1,
+        "top1_box_correct": 0.0,
+        "gate_present_success": 0.0,
+        "gate_accept_rate_present": 0.0,
+        "gate_absent_refusal": 1.0
+      },
+      "chair": {
+        "n_present": 57,
+        "n_absent": 0,
+        "top1_box_correct": 0.9298245614035088,
+        "gate_present_success": 0.9298245614035088,
+        "gate_accept_rate_present": 0.9298245614035088,
+        "gate_absent_refusal": null
+      },
+      "desk": {
+        "n_present": 56,
+        "n_absent": 0,
+        "top1_box_correct": 0.5,
+        "gate_present_success": 0.5,
+        "gate_accept_rate_present": 0.5,
+        "gate_absent_refusal": null
+      },
+      "dog": {
+        "n_present": 0,
+        "n_absent": 57,
+        "top1_box_correct": null,
+        "gate_present_success": null,
+        "gate_accept_rate_present": null,
+        "gate_absent_refusal": 1.0
+      },
+      "door": {
+        "n_present": 0,
+        "n_absent": 13,
+        "top1_box_correct": null,
+        "gate_present_success": null,
+        "gate_accept_rate_present": null,
+        "gate_absent_refusal": 1.0
+      },
+      "guitar": {
+        "n_present": 0,
+        "n_absent": 57,
+        "top1_box_correct": null,
+        "gate_present_success": null,
+        "gate_accept_rate_present": null,
+        "gate_absent_refusal": 1.0
+      },
+      "horse": {
+        "n_present": 0,
+        "n_absent": 57,
+        "top1_box_correct": null,
+        "gate_present_success": null,
+        "gate_accept_rate_present": null,
+        "gate_absent_refusal": 1.0
+      },
+      "laptop": {
+        "n_present": 0,
+        "n_absent": 1,
+        "top1_box_correct": null,
+        "gate_present_success": null,
+        "gate_accept_rate_present": null,
+        "gate_absent_refusal": 1.0
+      },
+      "person": {
+        "n_present": 32,
+        "n_absent": 20,
+        "top1_box_correct": 1.0,
+        "gate_present_success": 1.0,
+        "gate_accept_rate_present": 1.0,
+        "gate_absent_refusal": 1.0
+      },
+      "potted plant": {
+        "n_present": 0,
+        "n_absent": 18,
+        "top1_box_correct": null,
+        "gate_present_success": null,
+        "gate_accept_rate_present": null,
+        "gate_absent_refusal": 1.0
+      },
+      "refrigerator": {
+        "n_present": 0,
+        "n_absent": 18,
+        "top1_box_correct": null,
+        "gate_present_success": null,
+        "gate_accept_rate_present": null,
+        "gate_absent_refusal": 1.0
+      },
+      "sofa": {
+        "n_present": 0,
+        "n_absent": 57,
+        "top1_box_correct": null,
+        "gate_present_success": null,
+        "gate_accept_rate_present": null,
+        "gate_absent_refusal": 1.0
+      },
+      "table": {
+        "n_present": 56,
+        "n_absent": 0,
+        "top1_box_correct": 0.017857142857142856,
+        "gate_present_success": 0.0,
+        "gate_accept_rate_present": 0.0,
+        "gate_absent_refusal": null
+      },
+      "television": {
+        "n_present": 0,
+        "n_absent": 1,
+        "top1_box_correct": null,
+        "gate_present_success": null,
+        "gate_accept_rate_present": null,
+        "gate_absent_refusal": 1.0
+      },
+      "toilet": {
+        "n_present": 0,
+        "n_absent": 57,
+        "top1_box_correct": null,
+        "gate_present_success": null,
+        "gate_accept_rate_present": null,
+        "gate_absent_refusal": 1.0
+      },
+      "window": {
+        "n_present": 0,
+        "n_absent": 1,
+        "top1_box_correct": null,
+        "gate_present_success": null,
+        "gate_accept_rate_present": null,
+        "gate_absent_refusal": 1.0
+      }
+    },
+    "absent_refusal_in_vocab": 1.0,
+    "absent_refusal_out_of_vocab": 1.0
+  },
+  "verdict": "SUPPORTED at registered magnitude (>=0.15)"
+}

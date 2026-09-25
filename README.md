@@ -221,7 +221,7 @@ What is done:
 
 What is **not** done:
 - Robot-side eval on Jetson Orin NX (25 W and 15 W rows in [`RESULTS.md`](RESULTS.md) are still `<...>` placeholders).
-- Real indoor rosbag suite. Current grounding numbers are on a synthetic single-image scene (`bus.jpg`), useful only as a sanity / honesty signal.
+- 3D grounding on real data. The robot has an RGB camera only (no depth), so real-data grounding is per-frame 2D so far: 57 frames from one lab room ([`RESULTS.md`](RESULTS.md), "Real GO2 front-camera frames"). "go to the table" fails there (0/56).
 - Navigation success rate (SR) and SPL: harness exists, numbers not yet captured.
 - Motored navigation integration. The sibling stack must first prove odometry, robot TF, localization or mapping, global costmap publication, goal handling, and emergency stop behavior.
 - Margin-based grounding gate. Deferred to Phase 5 post-rosbag eval; the current two-layer gate still lets one out-of-vocab query slip through (see [`RESULTS.md`](RESULTS.md) "Discovered" entry).

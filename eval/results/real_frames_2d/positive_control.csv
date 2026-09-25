@@ -1,0 +1,3 @@
+frame,bag,block,viewpoint,query_class,in_vocab,truth,query,parsed_noun,n_detections,top_label,top_score,top_clip,top_label_score,top_det_conf,top_box,gate_refusal
+/home/yusuf/.local/lib/python3.10/site-packages/ultralytics/assets/bus.jpg,pc,pc,pc,person,True,present,go to the person,person,4,person,0.4231,0.2472,1.0,0.91,667 387 810 878,
+/home/yusuf/.local/lib/python3.10/site-packages/ultralytics/assets/bus.jpg,pc,pc,pc,sofa,True,absent,go to the sofa,sofa,4,person,0.1461,0.1159,0.075,0.91,667 387 810 878,below_absolute_floor

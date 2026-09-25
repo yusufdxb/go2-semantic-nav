@@ -97,11 +97,33 @@ Measured on GO2 EDU with `seeing-eye-dog` Nav2 downstream; ≥3 trials per query
 
 ## Ablation
 
+### Real GO2 front-camera frames, per-frame 2D (2026-09-24)
+
+The robot carries an RGB front camera only (960x540, 2 Hz, no depth), so the 3D path (back-projection, scene graph, Nav2 goal) cannot run on recorded data yet. This evaluates what can: detector, segmenter, encoder, grounding score and rejection gate, per frame, on real frames, with all models and thresholds frozen from `config/scene_profiles/dev_gpu.yaml`. Pre-registered before any compute in [`docs/preregistration/2026-09-24-real-frames-2d-grounding.md`](docs/preregistration/2026-09-24-real-frames-2d-grounding.md). Ground truth was committed before inference.
+
+**Data.** 57 frames on a fixed 15 s grid from 3 recorded lab sessions. **One room, 9 distinct viewpoints** (the robot stood still for most of each recording). 682 queries: 209 present (chair, desk, table, person, bookshelf) and 473 absent (in-vocabulary classes not in view, plus guitar, dog, horse, bicycle, toilet). Present queries count as successes only if the chosen box actually contains the queried class; all 209 chosen boxes were judged by eye, shuffled and blind to the gate decision.
+
+| Arm | Present success | Absent refusal | Balanced accuracy |
+|---|---|---|---|
+| Ungated (always take top-1) | 0.55 | 0.00 | 0.27 |
+| Random refusal, dose-matched per session | 0.11 | 0.84 | 0.47 |
+| **v2 gate** | **0.54** | **1.00** | **0.77** |
+| Oracle (refuse iff truly absent) | 0.55 | 1.00 | 0.77 |
+
+- **Primary (registered):** gate minus dose-matched sham = **+0.30**, 95% CI [0.25, 0.34] over 15 time blocks and [0.20, 0.37] over 9 viewpoint clusters. It clears the registered 0.15 bar. The sham's realised refusal rate matched the gate's within 0.001 in every session.
+- **Every one of the 113 gate acceptances pointed at a correct box.** Misses are recall: the gate ties the oracle, so the bottleneck is detection and ranking (top-1 box correct 55%), not the gate.
+- Per class, gate success: chair 0.93 (53/57), person 1.00 (32/32), desk 0.50 (28/56), **table 0.00 (0/56)**, bookshelf 0.00 (0/8).
+- Latency on this data (dev-gpu, 960x540, 54 frames): total p50 83 ms / p95 136 ms; MobileSAM 51 / 77 ms, OpenCLIP 27 / 55 ms, YOLO-World 4.2 / 4.7 ms. **Not a Jetson number.**
+
+**What this does not show.** (1) The gate reduced to a detector-label filter: the highest CLIP similarity of any top candidate was 0.273, below the 0.30 CLIP floor, so every acceptance came from an exact label match and the CLIP branch never decided anything. (2) The 100% absent refusal is not a stress test: no absent class was ever falsely detected under its own label here, which is the case the gate most needs to handle. (3) One room, one annotator (AI-assisted labelling from the frames, second-person check pending), per-frame only (no multi-frame scene-graph fusion), no navigation. Frames are not redistributed (people in view); rerun with `eval/real_frames/sample_frames.py`, `run_real_frames.py`, `analyze.py` against the source bags. Raw output: `eval/results/real_frames_2d/`.
+
 Full 6-configuration ablation table lands in `eval/results/ablation.md`.
 
 ## Honest negative results
 
 - **Raw-score thresholding is insufficient on small scenes (documented 2026-04-13).** The v1 grounding used a single `total_score >= 0.15` gate and accepted 16 out of 20 queries against a person-only synthetic scene, even for "approach the guitar" (chose person, total=0.179) and "the dog" (total=0.218). The underlying reason is that OpenCLIP ViT-B/16 gives raw image-text cosines in [0.1, 0.3] for clearly-unrelated pairs (CLIP text-image scores are not calibrated probabilities). The v2 two-layer gate (`absolute_floor=0.15 AND (label>=0.40 OR clip>=0.22)`) lifted expected-failure honesty from 0.00 → 0.67. One out-of-vocab query ("the dog") still slipped through because `CLIP("dog", person_crop) ≈ 0.23 > clip_floor`. A margin-based gate (top-1 − top-2) would catch it but reduces recall on scenes where multiple nearly-indistinguishable objects legitimately satisfy a query. The decision is deferred to Phase 5 post-rosbag eval.
+- **"go to the table" fails on real frames (2026-09-24).** In our lab YOLO-World labels every table "desk", `lexical_label_match("table", "desk")` is 0.04, and the best CLIP-scored crop for "table" was a **monitor** in 50 of 56 frames. The gate refused all 56, so the robot would not have been sent to a monitor, but the query cannot succeed. Synonym handling (table/desk) or a lower CLIP floor are candidate fixes. Neither is tuned on these frames, since that would leak the evaluation set.
+- **The 0.30 CLIP floor is above every real-frame similarity observed (max 0.273).** It was raised from 0.22 on a Gazebo recording. On real frames it makes the gate label-only. Lowering it needs fresh held-out real data, not these frames.
 - **Ultralytics YOLO-World has an on-demand CLIP auto-install path** that is not declared in its package metadata. First-run inference triggers `uv pip install git+https://github.com/ultralytics/CLIP.git` which can hang for minutes and does not respect offline environments. Workaround documented in `docs/troubleshooting.md`.
 - **Raw `pip install --force-reinstall`** without `--extra-index-url https://download.pytorch.org/whl/cu128` silently replaces the Blackwell-compatible `torch==2.11.0+cu128` wheel with a default CUDA-13 one that fails to run on the Blackwell consumer GPU driver (12.8). Documented in `CONTRIBUTING.md`.
 
