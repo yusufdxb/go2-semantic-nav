@@ -27,6 +27,46 @@ ros2 launch go2_semantic_bringup semantic_nav.launch.py --show-args
 
 Do not reinstall PyTorch unless following the NVIDIA instructions for the exact JetPack release.
 
+### Offline detector dependencies (no internet on the robot)
+
+Verified on JetPack 6 (L4T R36.4.7, CUDA 12.6, cuDNN 9.3), Python 3.10. A
+PyPI torch wheel for aarch64 imports but reports `cuda False` on Jetson; use
+the Jetson AI Lab build. Everything goes into one private folder that only the
+detector's environment puts on `PYTHONPATH`, so a system or user-site torch is
+left alone.
+
+On a PC with internet:
+
+```bash
+IDX=https://pypi.jetson-ai-lab.io/jp6/cu126/+simple
+pip download --no-deps --only-binary=:all: --platform linux_aarch64 --python-version 310 \
+    --implementation cp --index-url $IDX torch==2.8.0 torchvision==0.23.0 -d wheels
+pip download --no-deps --only-binary=:all: --platform manylinux2014_aarch64 --python-version 310 \
+    --index-url $IDX nvidia-cusparselt-cu12==0.7.1 -d wheels
+pip download --no-deps --only-binary=:all: --platform manylinux2014_aarch64 --python-version 310 \
+    open_clip_torch timm ftfy wcwidth -d wheels
+pip wheel --no-deps -w wheels git+https://github.com/ultralytics/CLIP.git \
+    git+https://github.com/ChaoningZhang/MobileSAM.git
+```
+
+Copy `wheels/` and the weights to the robot computer: `yolov8s-worldv2.pt` to
+`~/.cache/ultralytics/`, `mobile_sam.pt` to `~/.cache/mobile_sam/`, OpenAI
+CLIP `ViT-B-32.pt` (YOLO-World encodes its prompts with it) to `~/.cache/clip/`,
+and the Hugging Face cache folder `models--laion--CLIP-ViT-B-16-laion2B-s34B-b88K`
+to `~/.cache/huggingface/hub/`. Then on the robot computer:
+
+```bash
+T=~/gsn_lab/pydeps_ml
+pip3 install --no-deps --no-index --target $T wheels/*.whl
+export PYTHONPATH=$T:$PYTHONPATH LD_LIBRARY_PATH=$T/nvidia/cusparselt/lib:$LD_LIBRARY_PATH
+export HF_HUB_OFFLINE=1 YOLO_OFFLINE=1
+python3 -c "import torch; print(torch.__version__, torch.cuda.is_available())"   # 2.8.0 True
+```
+
+Measured on the Orin NX (MAXN) on one live 1280x720 frame with 11 objects:
+YOLO-World v2-s 34 ms, MobileSAM 573 ms, OpenCLIP ViT-B/16 511 ms, about
+1.1 s per detection cycle; masks and embeddings dominate.
+
 ## 3. Discover live interfaces
 
 ```bash

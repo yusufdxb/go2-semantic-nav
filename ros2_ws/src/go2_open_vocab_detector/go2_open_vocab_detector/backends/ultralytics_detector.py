@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 
 import numpy as np
@@ -15,6 +16,23 @@ _MODEL_NAMES: dict[str, str] = {
     "yolo_world_v2_x": "yolov8x-worldv2.pt",
     "yoloe_11s": "yoloe-11s-seg.pt",
 }
+
+
+def resolve_weight_file(file_name: str) -> str:
+    """Local copy of the weights if one exists, else the bare name.
+
+    A bare name makes ultralytics look in the working directory and then
+    download, which hangs on a robot without internet. Mirrors the MobileSAM
+    backend's ~/.cache lookup.
+    """
+    for cand in (
+        os.path.expanduser(os.path.join("~/.cache/ultralytics", file_name)),
+        os.path.join(os.getcwd(), file_name),
+        os.path.join(os.getcwd(), "models", file_name),
+    ):
+        if os.path.exists(cand):
+            return cand
+    return file_name
 
 
 class UltralyticsOpenVocabDetector(DetectorBackend):
@@ -40,7 +58,7 @@ class UltralyticsOpenVocabDetector(DetectorBackend):
     def load(self, device: str, prompts: list[str]) -> None:
         from ultralytics import YOLO  # imported lazily; heavy import
 
-        self._model = YOLO(self._weight_file)
+        self._model = YOLO(resolve_weight_file(self._weight_file))
         self._device = device
         if prompts:
             self.set_prompts(prompts)

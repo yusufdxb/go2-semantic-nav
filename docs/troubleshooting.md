@@ -81,8 +81,8 @@ ros2 topic info --verbose /camera/color/image_raw
 - **Fix:** `source .venv/bin/activate && pip install open_clip_torch` from project root.
 
 ### `SIGSEGV` on MobileSAM import on Jetson
-- **Cause:** the `mobile_sam` pip package bundles an x86 `.so`; it is not aarch64-compatible.
-- **Fix:** On Jetson, use NanoSAM (`segmenter: nano_sam`). The `mobile_sam` package should be dev-only.
+- **Cause:** a `mobile_sam` build that bundles an x86 `.so`.
+- **Fix:** build the wheel from source (`pip wheel --no-deps git+https://github.com/ChaoningZhang/MobileSAM.git`): it is pure Python and imports and runs on the Orin NX (checked on JetPack 6, see jetson_cookbook.md). NanoSAM (`segmenter: nano_sam`) remains the faster option on Jetson.
 
 ### `ros2 launch` fails: "Could not find go2_semantic_msgs"
 - **Cause:** overlay workspace not sourced, or built out of order.
