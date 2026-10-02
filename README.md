@@ -25,8 +25,8 @@ Live 3DGS optimization with densification does not hit near-real-time on Jetson 
 
 - **Target hardware:** NVIDIA Jetson Orin NX 16 GB on Unitree GO2, plus Blackwell consumer GPU dev workstation.
 - **Target latency budget:** sensor to `/goal_pose` under 100 ms on Jetson at 25 W (dev-workstation pipeline runs at 68 ms total on the Blackwell consumer GPU; Jetson on-robot eval pending).
-- **Phase:** Phase 1, scaffold complete, dev-workstation eval landed, robot eval pending.
-- **Eval state:** dev numbers in [`RESULTS.md`](RESULTS.md); on-robot eval not yet run.
+- **Phase:** Phase 1, scaffold complete, dev-workstation eval landed; first on-robot run with the robot standing still (2026-10-02).
+- **Eval state:** dev numbers in [`RESULTS.md`](RESULTS.md); first on-robot per-stage numbers there too; on-robot eval (calibrated, ≥1000 frames, navigation) not yet run.
 
 ```mermaid
 flowchart TD
@@ -215,11 +215,12 @@ ros2 action send_goal /semantic/ground_and_navigate \
 
 ## Project status
 
-**Phase 1: scaffold complete, dev-workstation eval landed, robot eval pending.**
+**Phase 1: scaffold complete, dev-workstation eval landed, first on-robot run with the robot standing still.**
 
 What is done:
 - 6 ROS 2 packages build clean; standard ROS nodes are wired end to end.
-- RGB-only GO2 support (`go2_rgb_lidar`): a real GO2 camera frame with a synthetic LiDAR scene runs through the real detector with correct 3D depth (`scripts/smoke_rgb_lidar.py`). Not yet run on the robot; the camera has not been calibrated.
+- RGB-only GO2 support (`go2_rgb_lidar`): a real GO2 camera frame with a synthetic LiDAR scene runs through the real detector with correct 3D depth (`scripts/smoke_rgb_lidar.py`).
+- On the robot, standing still (2026-10-02, [`docs/lab_run.md`](docs/lab_run.md)): camera 14.3 fps with arrival->publish p50 about 18 ms (p95 19.5 ms before the detector was added, marginal around 25 ms with it), LiDAR depth 4.5 Hz, slam_toolbox map saved to disk, detector + scene graph live on the Orin NX GPU writing the object map to JSON. The camera has not been calibrated, so depth and object positions use nominal values.
 - 9 detector backends, 4 segmenters, 3 encoder families pluggable through `factory.py` (see [`CHANGELOG.md`](CHANGELOG.md)).
 - Two-layer grounding rejection (absolute floor + label/clip floor) replaces the v1 single-threshold gate after the synthetic-scene false-positive failure mode (documented in [`RESULTS.md`](RESULTS.md)).
 - Latency profiler + thermal benchmark + rosbag-backed eval harness in place.
@@ -227,8 +228,8 @@ What is done:
 - CI: ruff lint + msgs build + pure-Python unit smoke.
 
 What is **not** done:
-- GO2 front camera calibration (intrinsics, camera-to-LiDAR extrinsics, latency) and a first on-robot check of the camera stream and LiDAR depth density. Until the calibration files exist, depth is withheld and the detector reports nothing.
-- Robot-side eval on Jetson Orin NX (25 W and 15 W rows in [`RESULTS.md`](RESULTS.md) are still `<...>` placeholders).
+- GO2 front camera calibration (intrinsics, camera-to-LiDAR extrinsics, latency). Until the calibration files exist, depth is withheld outside the lab run and object positions are not validated.
+- Robot-side eval on Jetson Orin NX (the ≥1000-frame 25 W and 15 W rows in [`RESULTS.md`](RESULTS.md) are still `<...>` placeholders; only a first 10-cycle measurement exists).
 - Real indoor rosbag suite. Current grounding numbers are on a synthetic single-image scene (`bus.jpg`), useful only as a sanity / honesty signal.
 - Navigation success rate (SR) and SPL: harness exists, numbers not yet captured.
 - Motored navigation integration. The sibling stack must first prove odometry, robot TF, localization or mapping, global costmap publication, goal handling, and emergency stop behavior.
@@ -238,7 +239,8 @@ The safe next milestone is a motors-disabled RGB-D and dry-run grounding session
 
 ## Known limitations
 
-- **No on-robot numbers yet.** Every Jetson row in [`RESULTS.md`](RESULTS.md) is a placeholder. The dev-workstation 68 ms / 14.7 Hz upper bound on the Blackwell consumer GPU will **not** transfer 1:1 to Orin NX at 25 W; expect significantly lower sustained throughput.
+- **Detector is slow on the robot.** First on-robot numbers: about 1.1 s per detection cycle on the Orin NX (MobileSAM 573 ms + OpenCLIP 511 ms with 11 objects), so near 1 Hz against the dev-workstation 68 ms. NanoSAM / MobileCLIP or TensorRT are the planned fixes; none is measured on the robot yet.
+- **Camera decode is the largest latency stage.** Of the camera's ~18 ms arrival->publish (p50), roughly 10 ms is the hardware H.264 decoder, whose clock sat at its floor during the run; colour conversion adds ~6 ms ([`docs/lab_run.md`](docs/lab_run.md)).
 - **Ultralytics YOLO-World** auto-installs OpenAI's `clip` package on first inference and can hang for minutes. Pre-install manually in production deploys ([`docs/troubleshooting.md`](docs/troubleshooting.md)).
 - **Torch wheel pinning** is fragile on Blackwell GPUs: any `pip install --force-reinstall` without `--extra-index-url https://download.pytorch.org/whl/cu128` will replace the cu128 wheel with the default CUDA-13 one and break the detector.
 - **Closed-vocab fallback (YOLO baseline)** is intentionally not implemented; the comparison story is against ConceptGraphs / VLMaps style baselines, not detection-only.

@@ -71,8 +71,59 @@ files exist, `lidar_depth_node` withholds depth outside these lab runs.
 | probe: camera fps 0 | multicast not reaching the NIC | `sudo tcpdump -i enP8p1s0 -c 5 udp port 1720` on the robot computer |
 | probe: DDS delivery < 0.95 | receive buffers, CPU load | check `sysctl net.core.rmem_max`, `tegrastats` |
 | probe: lidar/odom 0 | relay inputs missing | `ros2 topic hz /utlidar/robot_odom /utlidar/cloud_deskewed` |
+| probe: arrival->publish p95 > 25 ms with several image readers | DDS sending frames as multicast on the robot NIC | the lab env sets `AllowMulticast=spdp`; check `CYCLONEDDS_URI` of the camera process and `enP8p1s0` tx bytes (should be kB/s, not MB/s) |
+| probe: latency high, load average > 8 | CPU contention (another job, SLAM forced to add scans while still) | `top`; keep the repo slam config |
 | checkerboard: coverage stays low | board too far / one region | bring it closer, cover the empty cells of the map |
 | offline latency: yaw-rate RMS < 0.2 | yawed too slowly | redo `run_lab.sh yaw` (30 s) |
+
+## Mapping and semantic perception (robot standing still)
+
+After `up`, with no robot motion:
+
+```bash
+scripts/lab/run_lab.sh mlwheels        # once, on a PC with internet: detector wheels + weights (~2 GB)
+scripts/lab/run_lab.sh mldeploy        # copy, install into ~/gsn_lab/pydeps_ml, CUDA check
+scripts/lab/run_lab.sh slam            # /scan + slam_toolbox mapping, map saved every 60 s to ~/gsn_lab/maps/
+scripts/lab/run_lab.sh semantic        # detector + scene graph, grounding off, JSON snapshots every 10 s
+scripts/lab/run_lab.sh maps            # copy maps + snapshots to ~/rgb_lidar_runs/maps
+```
+
+`down` stops these too. The detector torch lives in a private folder that only
+the `semantic` processes put on `PYTHONPATH`; the robot computer's own Python
+packages are not changed. With the repo slam config a scan joins the map only
+after 0.2 m or 0.2 rad of motion, so a robot that stands still keeps the first
+scan; object positions use the camera calibration, so they are only as good
+as it is (nominal until the calibration above has run).
+
+Measured on the robot (2026-10-02, standing still, nominal calibration, MAXN):
+the detector loads in about a minute and runs near 1 Hz, not the configured
+5 Hz: YOLO-World v2-s 34 ms, MobileSAM 573 ms, OpenCLIP ViT-B/16 511 ms per
+frame with 11 objects. Camera arrival->publish with the depth node and the
+detector reading the image: p50 about 18 ms; p95 per one-second window
+18.6-25.4 ms, so marginal against the 25 ms probe limit (the probe itself, as
+a third reader, measured 25.2-27.6 ms). The lab wifi to the robot computer measured 46 Mbit/s that day.
+
+## Camera latency: where the time goes
+
+Per-element GStreamer latency tracer on the robot, same pipeline as the node
+(`GST_TRACERS="latency(flags=element)"`), p50 / p95:
+
+| stage | ms |
+|---|---|
+| RTP depay + H.264 parse | 0.2 / 0.4 |
+| `nvv4l2decoder` (hardware decode) | 16.0 / 22.6 |
+| `nvvidconv` NV12 -> BGRx | 3.8 / 4.6 |
+| `videoconvert` BGRx -> BGR (CPU) | 2.1 / 3.5 |
+
+The traced pipeline ran next to the live one, so two streams shared the
+decoder and its 16 ms is likely inflated. In the node itself (p50 about 18 ms
+with two readers), subtracting the conversions (~6 ms) and the copy plus DDS
+publish (about 1-2 ms per local reader) leaves roughly 10 ms for decode: still
+the largest stage. The NVDEC clock read 115 MHz (its floor) in 18
+of 20 samples while decoding, against a maximum of 858 MHz;
+`enable-max-performance=true` does not raise it, and `enable-full-frame=true`
+made no difference. Whether pinning the NVDEC clock shortens decode has not
+been tested.
 
 ## Rehearsal without the robot
 
@@ -83,5 +134,6 @@ stream). `run_lab.sh all` itself has been rehearsed end to end on one desktop
 with stand-ins for `ssh`, `sshpass` and `sudo` that run the "remote" side in a
 scratch home folder (forced wheel install, nvv4l2-to-avdec fallback, all
 captures, calibration, results-only pull: exit 0). The calibration tools'
-PASS path has only been exercised on synthetic captures, and nothing has run
-on the robot.
+PASS path has only been exercised on synthetic captures. On the robot,
+`deploy`, `up`, `probe`, `slam` and `semantic` have run (2026-10-02, no motion);
+the calibration captures have not.

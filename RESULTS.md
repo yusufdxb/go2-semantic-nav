@@ -35,6 +35,22 @@ python3 scripts/latency_profiler.py --frames 100 --warmup-frames 20 \
 ```
 The SIGTERM-aware teardown in `synthetic_publisher.py` was added in the same pass to prevent `ExternalShutdownException` noise when processes are killed (e.g., by CI).
 
+### First on-robot measurement (2026-10-02)
+
+Not a table row: 10 detection cycles on one live 1280x720 GO2 front-camera
+frame (11 objects) after 2 warm-up cycles, Orin NX in MAXN, no thermal soak,
+backends called directly with the node's backend code. torch 2.8.0 (Jetson AI
+Lab, JetPack 6 / CUDA 12.6).
+
+| Config | Platform | Detector ms | Segmenter ms | Encoder ms | Total ms |
+|---|---|---|---|---|---|
+| YOLO-Worldv2-s + MobileSAM + OpenCLIP-B/16 | Orin NX, MAXN | 34.1 / 45.4 (median / max) | 572.7 / 624.6 | 511.1 / 627.3 | 1119 / 1237 |
+
+The segmenter and encoder are 15-25x slower than on dev-gpu, more than the
+GPU gap alone; why is not yet measured. Live, the detector node ran near
+1 Hz and the scene graph wrote its objects to JSON (see `docs/lab_run.md`).
+Object positions use nominal camera calibration and are not validated.
+
 ## Sustained throughput at Jetson 25 W
 
 Post-thermal-soak (5 min), over 10-min continuous runs.
