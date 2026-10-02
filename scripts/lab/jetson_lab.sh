@@ -38,6 +38,9 @@ env_setup() {
   # Private Python deps (only present if the system lacked them): our processes only.
   [ -d "$LAB/pydeps" ] && export PYTHONPATH="$LAB/pydeps${PYTHONPATH:+:$PYTHONPATH}"
   export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+  # numpy's OpenBLAS starts one spinning worker per core: lidar_depth_node sat
+  # at ~260% CPU on the Orin NX for small 4x4 transforms, ~37% with one thread.
+  export OPENBLAS_NUM_THREADS=1
   # Large DDS receive buffers: a raw 720p frame is ~2.7 MB of UDP fragments
   # and the default buffer drops whole frames. min= makes CycloneDDS refuse to
   # start if the kernel limit was not raised, instead of silently losing frames.
@@ -65,13 +68,16 @@ prepare() {
     [ "$(sysctl -n net.core.rmem_max)" -ge $RMEM ] || { echo "FAIL rmem_max not raised"; fail=1; }
     ip -br addr show "$IFACE" >/dev/null 2>&1 && echo "ok   robot NIC $IFACE" || { echo "FAIL no NIC $IFACE"; fail=1; }
   fi
+  # Plain --exists also requires the plugin version to reach the core version
+  # (1.20); JetPack's NVIDIA plugins report 1.14, so they would read as missing.
+  has() { gst-inspect-1.0 --exists --atleast-version=1.0 "$1"; }
   for e in udpsrc rtph264depay h264parse videoconvert videoscale appsink; do
-    gst-inspect-1.0 --exists "$e" && echo "ok   gst $e" || { echo "FAIL gst $e missing"; fail=1; }
+    has "$e" && echo "ok   gst $e" || { echo "FAIL gst $e missing"; fail=1; }
   done
   # One working H.264 decoder is enough: hardware (default) or software (fallback).
   local hw=0 sw=0
-  gst-inspect-1.0 --exists nvv4l2decoder && gst-inspect-1.0 --exists nvvidconv && hw=1
-  gst-inspect-1.0 --exists avdec_h264 && sw=1
+  has nvv4l2decoder && has nvvidconv && hw=1
+  has avdec_h264 && sw=1
   echo "decoders: nvv4l2 $([ $hw = 1 ] && echo ok || echo MISSING), avdec $([ $sw = 1 ] && echo ok || echo MISSING)"
   [ $hw = 1 ] || [ $sw = 1 ] || { echo "FAIL no H.264 decoder"; fail=1; }
   [ $hw = 1 ] || echo "NOTE up will use avdec (pass 'avdec' to up to skip the nvv4l2 attempt)"
