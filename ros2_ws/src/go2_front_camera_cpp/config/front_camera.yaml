@@ -1,0 +1,14 @@
+go2_front_camera:
+  ros__parameters:
+    address: 230.1.1.1
+    port: 1720
+    multicast_iface: ""       # enP8p1s0 on the GO2 Jetson
+    buffer_size: 8388608      # needs sysctl net.core.rmem_max >= this
+    decoder: nvv4l2           # Jetson hardware decode; "avdec" for software
+    output_width: 0           # 0 = native; must match the intrinsics calibration
+    output_height: 0
+    image_topic: /camera/front/image_raw
+    frame_id: front_camera_optical_frame
+    latency_s: 0.0            # capture-to-arrival delay, from the lab yaw capture
+    max_rate_hz: 0.0          # 0 = every frame
+    restart_after_s: 3.0

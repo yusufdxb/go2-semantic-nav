@@ -61,7 +61,7 @@ Source tree under `ros2_ws/src/` matches this table 1:1.
   - `/camera/depth/image_rect_raw`
   - `/camera/color/camera_info`
 - **`go2_rgb_lidar` (rclpy nodes), for the stock GO2, which has no depth camera:**
-  - front camera driver: RTP H.264 multicast to `/camera/front/image_raw`
+  - front camera driver (C++ `go2_front_camera_cpp`, Python fallback): RTP H.264 multicast to `/camera/front/image_raw`, stamped at packet arrival
   - LiDAR projected into the camera as an aligned sparse depth image (`/camera/front/lidar_depth` + `camera_info`), with a visibility filter for returns hidden behind nearer ones
   - withholds depth until the camera is calibrated ([`docs/rgb_lidar_calibration.md`](docs/rgb_lidar_calibration.md))
 - **`go2_open_vocab_detector` (rclpy node):**
@@ -205,6 +205,7 @@ ros2 action send_goal /semantic/ground_and_navigate \
 | [`docs/deployment.md`](docs/deployment.md) | Jetson install, TensorRT export, launch on the robot |
 | [`docs/demo.md`](docs/demo.md) | Operator procedure for a live demo run |
 | [`docs/rgb_lidar_calibration.md`](docs/rgb_lidar_calibration.md) | RGB-only GO2: LiDAR-projected depth, camera calibration, what is verified |
+| [`docs/lab_run.md`](docs/lab_run.md) | One-command robot session: deploy, health/latency probe, captures; calibration runs offline |
 | [`docs/experiments.md`](docs/experiments.md) | Eval suite, metrics, how to reproduce reported numbers |
 | [`docs/jetson_cookbook.md`](docs/jetson_cookbook.md) | Jetson-specific install and runtime notes |
 | [`docs/latency_instrumentation.md`](docs/latency_instrumentation.md) | How per-stage timings are captured and aggregated |

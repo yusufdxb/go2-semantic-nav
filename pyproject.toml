@@ -21,6 +21,8 @@ testpaths = [
     "ros2_ws/src/go2_language_grounding/test",
     "ros2_ws/src/go2_semantic_bringup/test",
     "ros2_ws/src/go2_rgb_lidar/test",
+    "scripts/calib",
+    "scripts/lab",
     "eval",
 ]
 # Each ROS package has a test/ dir with no __init__.py; importlib mode keeps the

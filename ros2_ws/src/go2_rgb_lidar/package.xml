@@ -20,6 +20,7 @@
   <exec_depend>gstreamer1.0-plugins-good</exec_depend>
   <exec_depend>gstreamer1.0-plugins-bad</exec_depend>
   <exec_depend>gstreamer1.0-libav</exec_depend>
+  <exec_depend>go2_front_camera_cpp</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <test_depend>python3-pytest</test_depend>

@@ -6,7 +6,7 @@ the camera:
 
 | node | in | out |
 |---|---|---|
-| `front_camera_node` | RTP H.264 multicast `230.1.1.1:1720` | `/camera/front/image_raw` (bgr8, local-clock stamps, `front_camera_optical_frame`) |
+| `front_camera_node` (`go2_front_camera_cpp`, default; Python fallback in `go2_rgb_lidar`) | RTP H.264 multicast `230.1.1.1:1720` | `/camera/front/image_raw` (bgr8, stamped at packet arrival on the local clock, `front_camera_optical_frame`) |
 | `lidar_depth_node` | the image, `/go2/lidar/points` (base stack relay), TF `odom -> base_link` | `/camera/front/lidar_depth` (16UC1 mm, 0 = no return), `/camera/front/camera_info`, static TF `base_link -> front_camera_optical_frame`, optional `/camera/front/lidar_overlay` |
 
 Depth and camera_info carry the colour frame's exact header, so the detector's
@@ -44,6 +44,10 @@ The overlay is still published in all of these cases: it is the calibration tool
 | the GO2 camera stream format (1280x720, 15 fps), the multicast join, real LiDAR density in the camera view, calibration accuracy, capture latency | **NOT verified: needs the robot** |
 
 ## Lab procedure
+
+The fast path is [`lab_run.md`](lab_run.md): one script records everything in
+under 10 minutes at the robot and the calibration below is computed offline by
+`scripts/calib`. The manual procedure below remains the fallback.
 
 Prerequisites: Jetson clock set (it boots at 1970), base stack built and its
 localization running (`/go2/lidar/points` and `odom -> base_link` live),

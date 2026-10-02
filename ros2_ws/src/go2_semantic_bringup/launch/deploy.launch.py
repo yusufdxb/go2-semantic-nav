@@ -41,6 +41,8 @@ camera_extrinsics_file  rgb_lidar camera pose in base_link (default: NOMINAL)
 allow_nominal_calibration  rgb_lidar: false withholds depth until calibrated
 publish_lidar_overlay   rgb_lidar: publish /camera/front/lidar_overlay
 multicast_iface         rgb_lidar: robot-side NIC for the camera multicast
+camera_impl             rgb_lidar: cpp (default) | py camera driver
+camera_decoder          rgb_lidar + cpp: nvv4l2 (default, Jetson) | avdec
 enable_detector         false to run without object detection (default true)
 enable_scene_graph      false when another node provides /semantic/scene_graph
 cloud_in_topic          /utlidar/cloud_deskewed (default) or /utlidar/cloud
@@ -84,6 +86,8 @@ _ARGS = {
     "allow_nominal_calibration": "false",
     "publish_lidar_overlay": "false",
     "multicast_iface": "",
+    "camera_impl": "cpp",
+    "camera_decoder": "nvv4l2",
     "detector_params": "",
     "enable_detector": "true",
     "enable_scene_graph": "true",
@@ -127,6 +131,8 @@ def generate_launch_description() -> LaunchDescription:
             "allow_nominal_calibration": cfg["allow_nominal_calibration"],
             "publish_overlay": cfg["publish_lidar_overlay"],
             "multicast_iface": cfg["multicast_iface"],
+            "camera_impl": cfg["camera_impl"],
+            "camera_decoder": cfg["camera_decoder"],
             "use_sim_time": cfg["use_sim_time"],
         }.items(),
         condition=IfCondition(PythonExpression(["'", cfg["camera"], "' == 'rgb_lidar'"])),
