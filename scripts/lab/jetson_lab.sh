@@ -46,6 +46,11 @@ env_setup() {
   # start if the kernel limit was not raised, instead of silently losing frames.
   local buf='<CycloneDDS><Domain><Internal><SocketReceiveBufferSize min="16MB"/></Internal></Domain></CycloneDDS>'
   [ "$REHEARSAL" = 1 ] && buf='<CycloneDDS><Domain><Internal><SocketReceiveBufferSize min="default" max="16MB"/></Internal></Domain></CycloneDDS>'
+  # Multicast for discovery only. With two or more readers of the 720p image
+  # CycloneDDS switched to multicast data on the robot NIC: ~41 MB/s onto the
+  # GO2's internal network and camera arrival->publish p50 16 -> 53 ms.
+  # Unicast keeps local readers on loopback.
+  buf="$buf,<CycloneDDS><Domain><General><AllowMulticast>spdp</AllowMulticast></General></Domain></CycloneDDS>"
   export CYCLONEDDS_URI="${CYCLONEDDS_URI:+$CYCLONEDDS_URI,}$buf"
 }
 
