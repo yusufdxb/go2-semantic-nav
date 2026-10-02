@@ -13,6 +13,7 @@
   <exec_depend>rviz2</exec_depend>
   <exec_depend>go2_semantic_msgs</exec_depend>
   <exec_depend>go2_open_vocab_detector</exec_depend>
+  <exec_depend>go2_rgb_lidar</exec_depend>
   <exec_depend>go2_scene_graph</exec_depend>
   <exec_depend>go2_language_grounding</exec_depend>
 

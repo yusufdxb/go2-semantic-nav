@@ -60,6 +60,10 @@ Source tree under `ros2_ws/src/` matches this table 1:1.
   - `/camera/color/image_raw`
   - `/camera/depth/image_rect_raw`
   - `/camera/color/camera_info`
+- **`go2_rgb_lidar` (rclpy nodes), for the stock GO2, which has no depth camera:**
+  - front camera driver: RTP H.264 multicast to `/camera/front/image_raw`
+  - LiDAR projected into the camera as an aligned sparse depth image (`/camera/front/lidar_depth` + `camera_info`), with a visibility filter for returns hidden behind nearer ones
+  - withholds depth until the camera is calibrated ([`docs/rgb_lidar_calibration.md`](docs/rgb_lidar_calibration.md))
 - **`go2_open_vocab_detector` (rclpy node):**
   - YOLO-World v2 / YOLOE for open-vocab boxes
   - MobileSAM / NanoSAM for mask per box
@@ -154,7 +158,7 @@ The latency profiler reads timestamps stamped into `SemanticDetectionArray.laten
 - **ROS 2 Humble** with `nav2_bringup`
 - **Python 3.10** (matches JetPack 6.x)
 - **PyTorch 2.x with CUDA 12.x** (tested with `torch==2.11.0+cu128` on the Blackwell consumer GPU)
-- **RealSense camera** publishing on `/camera/...` (same namespace as `go2_perception`)
+- **A depth source:** either an RGB-D camera publishing aligned depth on `/camera/...`, or the GO2 front camera plus its LiDAR through `go2_rgb_lidar` (the default in `deploy.launch.py`, `camera:=rgb_lidar`)
 - **TF tree** with `map -> odom -> base_link -> camera_color_optical_frame`
 - **For motion:** a proven base navigation stack with odometry, TF, localization or mapping, a global costmap, and `/goal_pose` handling
 
@@ -200,6 +204,7 @@ ros2 action send_goal /semantic/ground_and_navigate \
 | [`docs/system_diagram.md`](docs/system_diagram.md) | Full ROS graph, backend plug points, goal-generation flow, topic + QoS contract |
 | [`docs/deployment.md`](docs/deployment.md) | Jetson install, TensorRT export, launch on the robot |
 | [`docs/demo.md`](docs/demo.md) | Operator procedure for a live demo run |
+| [`docs/rgb_lidar_calibration.md`](docs/rgb_lidar_calibration.md) | RGB-only GO2: LiDAR-projected depth, camera calibration, what is verified |
 | [`docs/experiments.md`](docs/experiments.md) | Eval suite, metrics, how to reproduce reported numbers |
 | [`docs/jetson_cookbook.md`](docs/jetson_cookbook.md) | Jetson-specific install and runtime notes |
 | [`docs/latency_instrumentation.md`](docs/latency_instrumentation.md) | How per-stage timings are captured and aggregated |
@@ -212,7 +217,8 @@ ros2 action send_goal /semantic/ground_and_navigate \
 **Phase 1: scaffold complete, dev-workstation eval landed, robot eval pending.**
 
 What is done:
-- 5 ROS 2 packages build clean; standard ROS nodes are wired end to end.
+- 6 ROS 2 packages build clean; standard ROS nodes are wired end to end.
+- RGB-only GO2 support (`go2_rgb_lidar`): a real GO2 camera frame with a synthetic LiDAR scene runs through the real detector with correct 3D depth (`scripts/smoke_rgb_lidar.py`). Not yet run on the robot; the camera has not been calibrated.
 - 9 detector backends, 4 segmenters, 3 encoder families pluggable through `factory.py` (see [`CHANGELOG.md`](CHANGELOG.md)).
 - Two-layer grounding rejection (absolute floor + label/clip floor) replaces the v1 single-threshold gate after the synthetic-scene false-positive failure mode (documented in [`RESULTS.md`](RESULTS.md)).
 - Latency profiler + thermal benchmark + rosbag-backed eval harness in place.
@@ -220,6 +226,7 @@ What is done:
 - CI: ruff lint + msgs build + pure-Python unit smoke.
 
 What is **not** done:
+- GO2 front camera calibration (intrinsics, camera-to-LiDAR extrinsics, latency) and a first on-robot check of the camera stream and LiDAR depth density. Until the calibration files exist, depth is withheld and the detector reports nothing.
 - Robot-side eval on Jetson Orin NX (25 W and 15 W rows in [`RESULTS.md`](RESULTS.md) are still `<...>` placeholders).
 - Real indoor rosbag suite. Current grounding numbers are on a synthetic single-image scene (`bus.jpg`), useful only as a sanity / honesty signal.
 - Navigation success rate (SR) and SPL: harness exists, numbers not yet captured.

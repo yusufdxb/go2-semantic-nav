@@ -20,6 +20,7 @@ testpaths = [
     "ros2_ws/src/go2_scene_graph/test",
     "ros2_ws/src/go2_language_grounding/test",
     "ros2_ws/src/go2_semantic_bringup/test",
+    "ros2_ws/src/go2_rgb_lidar/test",
     "eval",
 ]
 # Each ROS package has a test/ dir with no __init__.py; importlib mode keeps the
@@ -31,6 +32,7 @@ pythonpath = [
     "ros2_ws/src/go2_scene_graph",
     "ros2_ws/src/go2_language_grounding",
     "ros2_ws/src/go2_semantic_bringup",
+    "ros2_ws/src/go2_rgb_lidar",
 ]
 python_files = ["test_*.py"]
 filterwarnings = [

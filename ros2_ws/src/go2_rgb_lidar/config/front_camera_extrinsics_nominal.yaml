@@ -1,0 +1,12 @@
+# Pose of the front camera OPTICAL frame (z forward, x right, y down) in
+# base_link, NOMINAL: NOT measured. The position is a guess placing the camera
+# on the face just above the LiDAR (base stack lidar_xyz = 0.289, 0, -0.047);
+# the rotation is a level, forward-looking camera. Measure and tune with the
+# LiDAR overlay (docs/rgb_lidar_calibration.md), then set nominal: false.
+nominal: true
+parent_frame: base_link
+child_frame: front_camera_optical_frame
+xyz: [0.32, 0.0, 0.03]
+# roll, pitch, yaw (rad), URDF fixed-axis convention. (-pi/2, 0, -pi/2) maps a
+# body-forward camera to the optical convention.
+rpy: [-1.5707963267948966, 0.0, -1.5707963267948966]

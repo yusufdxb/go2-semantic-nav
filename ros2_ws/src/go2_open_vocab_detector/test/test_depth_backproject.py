@@ -121,3 +121,15 @@ def test_rle_all_zeros_and_all_ones():
     for m in (mask_zeros, mask_ones):
         rle = mask_rle_encode(m)
         assert np.array_equal(mask_rle_decode(rle, m.shape[0], m.shape[1]), m)
+
+
+def test_masked_depth_median_requires_min_valid_pixels():
+    depth = np.zeros((10, 10), dtype=np.uint16)
+    depth[2, 2] = 1500  # one sparse return under the mask
+    mask = np.ones((10, 10), dtype=bool)
+    assert masked_depth_median(depth, mask) == pytest.approx(1.5)
+    assert np.isnan(masked_depth_median(depth, mask, min_valid_pixels=2))
+    depth[3, 3] = 1700
+    assert masked_depth_median(depth, mask, min_valid_pixels=2) == pytest.approx(1.6)
+    centroid, d, _ = object_centroid_3d(mask, depth, _simple_intrinsics(), min_valid_pixels=3)
+    assert np.isnan(d) and np.isnan(centroid).all()

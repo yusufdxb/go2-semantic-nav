@@ -77,6 +77,7 @@ class DetectorNode(Node):
         self.declare_parameter("max_objects_per_frame", 30)
         self.declare_parameter("min_depth_m", 0.2)
         self.declare_parameter("max_depth_m", 8.0)
+        self.declare_parameter("min_valid_depth_pixels", 1)
         self.declare_parameter("prompts", _DEFAULT_PROMPTS)
         self.declare_parameter("prompt_classes_file", "")
         self.declare_parameter("image_topic", "/camera/color/image_raw")
@@ -239,6 +240,7 @@ class DetectorNode(Node):
         max_objects = int(self.get_parameter("max_objects_per_frame").value)
         min_depth_m = float(self.get_parameter("min_depth_m").value)
         max_depth_m = float(self.get_parameter("max_depth_m").value)
+        min_valid_depth_pixels = int(self.get_parameter("min_valid_depth_pixels").value)
 
         # Inference chain ---------------------------------------------------
         t0_ns = time.perf_counter_ns()
@@ -278,6 +280,7 @@ class DetectorNode(Node):
                 intr=self._intr,
                 min_depth_m=min_depth_m,
                 max_depth_m=max_depth_m,
+                min_valid_pixels=min_valid_depth_pixels,
             )
             if not np.isfinite(centroid).all():
                 # Skip objects with unreliable depth

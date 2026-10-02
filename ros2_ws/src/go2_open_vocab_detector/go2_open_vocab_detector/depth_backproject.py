@@ -63,11 +63,14 @@ def masked_depth_median(
     mask: np.ndarray,
     min_depth_m: float = 0.2,
     max_depth_m: float = 8.0,
+    min_valid_pixels: int = 1,
 ) -> float:
     """Robust median depth over a binary mask, in meters.
 
     Rejects zeros (RealSense invalid-depth sentinel) and out-of-range values.
-    Returns NaN if the valid subset is empty.
+    Returns NaN if fewer than ``min_valid_pixels`` valid pixels remain. A dense
+    RGB-D frame needs 1; a sparse LiDAR-projected frame should demand several
+    returns so one stray point cannot place the object.
     """
     if mask.dtype != bool:
         mask = mask.astype(bool)
@@ -78,7 +81,7 @@ def masked_depth_median(
     valid_mask = mask & (depth_image_mm > int(min_depth_m * 1000)) & (
         depth_image_mm < int(max_depth_m * 1000)
     )
-    if not np.any(valid_mask):
+    if np.count_nonzero(valid_mask) < max(1, int(min_valid_pixels)):
         return float("nan")
     depths_m = depth_image_mm[valid_mask].astype(np.float32) / 1000.0
     return float(np.median(depths_m))
@@ -90,6 +93,7 @@ def object_centroid_3d(
     intr: CameraIntrinsics,
     min_depth_m: float = 0.2,
     max_depth_m: float = 8.0,
+    min_valid_pixels: int = 1,
 ) -> tuple[np.ndarray, float, np.ndarray]:
     """Compute (centroid_3d_camera, depth_median_m, dimensions_xyz) for a mask.
 
@@ -101,7 +105,11 @@ def object_centroid_3d(
     Returns (NaN array, NaN, NaN array) if the mask has no valid depth.
     """
     depth_m = masked_depth_median(
-        depth_image_mm, mask, min_depth_m=min_depth_m, max_depth_m=max_depth_m
+        depth_image_mm,
+        mask,
+        min_depth_m=min_depth_m,
+        max_depth_m=max_depth_m,
+        min_valid_pixels=min_valid_pixels,
     )
     if not np.isfinite(depth_m):
         nan3 = np.full(3, np.nan, dtype=np.float32)

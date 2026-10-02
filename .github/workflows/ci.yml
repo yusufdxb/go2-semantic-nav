@@ -25,6 +25,7 @@ jobs:
             ros-humble-vision-msgs \
             ros-humble-tf2-ros \
             ros-humble-tf2-geometry-msgs \
+            ros-humble-sensor-msgs-py \
             ros-humble-nav2-msgs \
             python3-colcon-common-extensions
           python3 -m pip install --upgrade pip
