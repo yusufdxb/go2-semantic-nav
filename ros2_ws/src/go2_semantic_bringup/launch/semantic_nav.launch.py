@@ -17,6 +17,7 @@ Args:
   publish_rate_hz   : scene-graph publish rate
   enable_detector   : set false to use an offboard detector
   enable_scene_graph: set false to skip scene graph (debug)
+  scene_graph_snapshot_dir : write scene graph JSON snapshots here ("" = off)
   enable_grounding  : set false to skip grounding action server
   allow_goal_publication : hardware safety interlock, default false
   navigation_backend : nav2_action or legacy goal_pose_topic
@@ -74,6 +75,7 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument("rviz_config", default_value=default_rviz),
         DeclareLaunchArgument("detector_params", default_value=default_detector_yaml),
         DeclareLaunchArgument("scene_graph_params", default_value=default_scene_graph_yaml),
+        DeclareLaunchArgument("scene_graph_snapshot_dir", default_value=""),
         DeclareLaunchArgument("grounding_params", default_value=default_grounding_yaml),
         DeclareLaunchArgument("use_sim_time", default_value="false",
                               description="Set on all nodes; pair with `ros2 bag play --clock` when replaying a bag"),
@@ -116,6 +118,7 @@ def generate_launch_description() -> LaunchDescription:
             LaunchConfiguration("scene_graph_params"),
             {
                 "publish_rate_hz": LaunchConfiguration("publish_rate_hz"),
+                "snapshot_dir": LaunchConfiguration("scene_graph_snapshot_dir"),
                 "use_sim_time": LaunchConfiguration("use_sim_time"),
             },
         ],

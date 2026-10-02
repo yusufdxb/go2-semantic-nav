@@ -7,10 +7,14 @@ updates an in-memory SceneGraphStore, and periodically publishes:
 - /semantic/object_markers (MarkerArray)
 
 Also serves /semantic/query_objects for text-grounded lookup without navigation.
+
+With ``snapshot_dir`` set, writes the graph to JSON every ``snapshot_period_s``
+(see snapshot_io): the live graph and an archive of every object ever published.
 """
 
 from __future__ import annotations
 
+import os
 import traceback
 from collections import deque
 
@@ -35,6 +39,7 @@ from tf2_ros import Buffer, TransformException, TransformListener
 
 from .graph_store import AssociationParams, SceneGraphStore
 from .marker_viz import build_object_markers
+from .snapshot_io import latest_snapshot, update_seen, write_json_atomic
 from .spatial_relations import RelationParams, compute_edges
 
 
@@ -65,6 +70,9 @@ class SceneGraphNode(Node):
         self.declare_parameter("tf_queue_timeout_s", 2.0)
         self.declare_parameter("tf_queue_size", 20)
         self.declare_parameter("use_precomputed_map_centroid", True)
+        # Empty = no files written.
+        self.declare_parameter("snapshot_dir", "")
+        self.declare_parameter("snapshot_period_s", 10.0)
 
         # Association params
         self.declare_parameter("assoc_max_dist_m", 0.5)
@@ -118,6 +126,14 @@ class SceneGraphNode(Node):
         # --- Publish timer ---
         rate_hz = float(self.get_parameter("publish_rate_hz").value)
         self._pub_timer = self.create_timer(1.0 / max(rate_hz, 0.1), self._publish_snapshot)
+
+        # --- Snapshot files ---
+        self._snapshot_dir = os.path.expanduser(str(self.get_parameter("snapshot_dir").value))
+        self._seen: dict[str, dict] = {}
+        if self._snapshot_dir:
+            period = max(float(self.get_parameter("snapshot_period_s").value), 1.0)
+            self._snapshot_timer = self.create_timer(period, self._write_snapshot)
+            self.get_logger().info(f"writing scene graph snapshots to {self._snapshot_dir} every {period} s")
 
         self.get_logger().info(
             f"go2_scene_graph ready: map_frame={self.get_parameter('map_frame').value}, "
@@ -377,6 +393,22 @@ class SceneGraphNode(Node):
             min_observations=int(self.get_parameter("min_observations_to_publish").value),
         )
         self._pub_markers.publish(markers)
+
+    def _write_snapshot(self) -> None:
+        publishable = self._store.objects_with_min_observations()
+        edges = compute_edges(publishable, self._relation_params)
+        latest = latest_snapshot(
+            publishable, edges, str(self.get_parameter("map_frame").value),
+            self.get_clock().now().nanoseconds,
+        )
+        update_seen(self._seen, latest)
+        try:
+            write_json_atomic(os.path.join(self._snapshot_dir, "scene_graph_latest.json"), latest)
+            write_json_atomic(os.path.join(self._snapshot_dir, "scene_graph_seen.json"),
+                              {"map_frame": latest["map_frame"], "stamp_ns": latest["stamp_ns"],
+                               "total_objects": len(self._seen), "objects": list(self._seen.values())})
+        except OSError as exc:
+            self.get_logger().error(f"scene graph snapshot not written: {exc}", throttle_duration_sec=30.0)
 
     # ----------------------------------------------------------- service
 

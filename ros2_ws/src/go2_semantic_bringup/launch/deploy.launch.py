@@ -45,6 +45,7 @@ camera_impl             rgb_lidar: cpp (default) | py camera driver
 camera_decoder          rgb_lidar + cpp: nvv4l2 (default, Jetson) | avdec
 enable_detector         false to run without object detection (default true)
 enable_scene_graph      false when another node provides /semantic/scene_graph
+scene_graph_snapshot_dir  write scene graph JSON snapshots here ("" = off)
 cloud_in_topic          /utlidar/cloud_deskewed (default) or /utlidar/cloud
 publish_lidar_extrinsic true only with the raw sensor-frame cloud
 image_topic, depth_topic, camera_info_topic: empty = the camera mode's
@@ -52,8 +53,11 @@ image_topic, depth_topic, camera_info_topic: empty = the camera mode's
 """
 from __future__ import annotations
 
+import os
+
+from go2_semantic_bringup.dds_env import cyclonedds_uri
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
@@ -91,6 +95,7 @@ _ARGS = {
     "detector_params": "",
     "enable_detector": "true",
     "enable_scene_graph": "true",
+    "scene_graph_snapshot_dir": "",
     "cloud_in_topic": "/utlidar/cloud_deskewed",
     "publish_lidar_extrinsic": "false",
     "image_topic": "",
@@ -167,6 +172,7 @@ def generate_launch_description() -> LaunchDescription:
         launch_arguments={
             "enable_detector": cfg["enable_detector"],
             "enable_scene_graph": cfg["enable_scene_graph"],
+            "scene_graph_snapshot_dir": cfg["scene_graph_snapshot_dir"],
             "enable_grounding": "true",
             "allow_goal_publication": cfg["allow_goal_publication"],
             # The staged planner runs no Nav2, so there is no costmap; grounding
@@ -188,8 +194,12 @@ def generate_launch_description() -> LaunchDescription:
         }.items(),
     )
 
+    # Every node below inherits it: keeps camera frames off multicast on the
+    # robot NIC once several nodes read them (see go2_semantic_bringup.dds_env).
+    dds = SetEnvironmentVariable("CYCLONEDDS_URI", cyclonedds_uri(os.environ.get("CYCLONEDDS_URI")))
+
     return LaunchDescription(
         [DeclareLaunchArgument(name, default_value=default) for name, default in _ARGS.items()]
         + calibration_args
-        + [base, rgb_lidar, semantic]
+        + [dds, base, rgb_lidar, semantic]
     )
