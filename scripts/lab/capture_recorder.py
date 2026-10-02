@@ -90,7 +90,8 @@ class Recorder:
         self.writer = threading.Thread(target=self._write_loop, daemon=True)
         self.writer.start()
         node.create_subscription(Image, a.image_topic, self.on_image, qos_profile_sensor_data)
-        node.create_subscription(PointCloud2, a.cloud_topic, self.on_cloud, qos_profile_sensor_data)
+        if not a.no_clouds:
+            node.create_subscription(PointCloud2, a.cloud_topic, self.on_cloud, qos_profile_sensor_data)
         node.create_subscription(Odometry, a.odom_topic, self.on_odom, 50)
 
     # Image encoding and board detection run off the executor thread so
@@ -201,6 +202,8 @@ def main() -> int:
     ap.add_argument("--board", default="7x6")
     ap.add_argument("--min-views", type=int, default=30)
     ap.add_argument("--taped", nargs="*", default=[], help="label:x:y[:z] in base_link, metres")
+    ap.add_argument("--no-clouds", action="store_true",
+                    help="do not record LiDAR (checkerboard and yaw do not use it; clouds are most of the bytes)")
     ap.add_argument("--notes", default="")
     ap.add_argument("--image-topic", default="/camera/front/image_raw")
     ap.add_argument("--cloud-topic", default="/go2/lidar/points")
@@ -220,6 +223,7 @@ def main() -> int:
         "intrinsics": intr,
         "extrinsics": ext,
         "notes": a.notes,
+        "clouds_recorded": not a.no_clouds,
     }
     if a.taped:
         meta["taped_objects"] = parse_taped(a.taped)
@@ -244,7 +248,7 @@ def main() -> int:
     rclpy.try_shutdown()
     print(f"[capture] {a.segment} done: {rec.status()}", flush=True)
     # A segment without both camera and LiDAR data is useless offline: say so now.
-    if rec.n_frames == 0 or rec.n_clouds == 0 or rec.n_odom == 0:
+    if rec.n_frames == 0 or rec.n_odom == 0 or (rec.n_clouds == 0 and not a.no_clouds):
         print("[capture] FAIL: missing frames, clouds or odometry", flush=True)
         return 2
     if a.segment == "checkerboard" and (rec.boards < 15 or rec.coverage() < 0.75):

@@ -2,11 +2,14 @@
 # Robot-computer side of the RGB + LiDAR lab run. Called by run_lab.sh over
 # ssh; can also be run by hand on the robot computer.
 #
+#   jetson_lab.sh pycheck            exit 0 if numpy, cv2 and yaml import (with our private deps)
+#   jetson_lab.sh pydeps             install them from $LAB/wheels into $LAB/pydeps (no network)
 #   jetson_lab.sh prepare            sysctl, dependency checks, colcon build (idempotent)
 #   jetson_lab.sh up [avdec|nvv4l2]  start relay + C++ camera + lidar_depth in the background
 #   jetson_lab.sh probe [seconds]    health/latency table (lab_probe.py)
 #   jetson_lab.sh capture <segment> <seconds> [recorder args...]
 #   jetson_lab.sh down               stop what `up` started (by process group)
+#   jetson_lab.sh calibrate          offline calibration of the current run, here
 #   jetson_lab.sh status
 #
 # Never commands robot motion: it starts sensor relays, the camera driver,
@@ -32,6 +35,8 @@ env_setup() {
   [ -f "$HOME/unitree_ros2/setup.sh" ] && source "$HOME/unitree_ros2/setup.sh" >/dev/null
   [ -f "$WS/install/setup.bash" ] && source "$WS/install/setup.bash"
   set -u
+  # Private Python deps (only present if the system lacked them): our processes only.
+  [ -d "$LAB/pydeps" ] && export PYTHONPATH="$LAB/pydeps${PYTHONPATH:+:$PYTHONPATH}"
   export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
   # Large DDS receive buffers: a raw 720p frame is ~2.7 MB of UDP fragments
   # and the default buffer drops whole frames. min= makes CycloneDDS refuse to
@@ -60,15 +65,23 @@ prepare() {
     [ "$(sysctl -n net.core.rmem_max)" -ge $RMEM ] || { echo "FAIL rmem_max not raised"; fail=1; }
     ip -br addr show "$IFACE" >/dev/null 2>&1 && echo "ok   robot NIC $IFACE" || { echo "FAIL no NIC $IFACE"; fail=1; }
   fi
-  for e in udpsrc rtph264depay h264parse avdec_h264 videoconvert videoscale appsink nvv4l2decoder nvvidconv; do
-    gst-inspect-1.0 --exists "$e" && echo "ok   gst $e" || { echo "MISS gst $e"; case $e in nv*) ;; *) fail=1;; esac; }
+  for e in udpsrc rtph264depay h264parse videoconvert videoscale appsink; do
+    gst-inspect-1.0 --exists "$e" && echo "ok   gst $e" || { echo "FAIL gst $e missing"; fail=1; }
   done
+  # One working H.264 decoder is enough: hardware (default) or software (fallback).
+  local hw=0 sw=0
+  gst-inspect-1.0 --exists nvv4l2decoder && gst-inspect-1.0 --exists nvvidconv && hw=1
+  gst-inspect-1.0 --exists avdec_h264 && sw=1
+  echo "decoders: nvv4l2 $([ $hw = 1 ] && echo ok || echo MISSING), avdec $([ $sw = 1 ] && echo ok || echo MISSING)"
+  [ $hw = 1 ] || [ $sw = 1 ] || { echo "FAIL no H.264 decoder"; fail=1; }
+  [ $hw = 1 ] || echo "NOTE up will use avdec (pass 'avdec' to up to skip the nvv4l2 attempt)"
+  [ $sw = 1 ] || echo "NOTE no software fallback if nvv4l2 yields no frames"
   for p in libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev; do
     dpkg -s "$p" >/dev/null 2>&1 && echo "ok   $p" || { echo "FAIL $p missing"; fail=1; }
   done
-  set +u; source /opt/ros/humble/setup.bash; set -u
-  python3 -c "import numpy, cv2, yaml, sensor_msgs_py; print('ok   python numpy', numpy.__version__, 'cv2', cv2.__version__)" \
-    || { echo "FAIL python deps"; fail=1; }
+  env_setup
+  python3 -c "import numpy, cv2, yaml, sensor_msgs_py; print('ok   python numpy', numpy.__version__, 'cv2', cv2.__version__, 'from', cv2.__file__)" \
+    || { echo "FAIL python deps (run_lab.sh deploy installs them from wheels)"; fail=1; }
   ( cd "$WS" && colcon build --packages-select go2_front_camera_cpp go2_rgb_lidar go2_localization \
       --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF > "$RUN/logs/colcon.txt" 2>&1 ) \
     && echo "ok   colcon build" || { echo "FAIL colcon build (see $RUN/logs/colcon.txt)"; tail -20 "$RUN/logs/colcon.txt"; fail=1; }
@@ -163,13 +176,34 @@ status() {
   done
 }
 
+pycheck() {
+  env_setup
+  [ "${GSN_FORCE_PYDEPS:-0}" = 1 ] && [ ! -d "$LAB/pydeps" ] && { echo "pycheck: forced miss (rehearsal)"; return 1; }
+  python3 -c "import numpy, cv2, yaml" 2>/dev/null && echo "pycheck: ok" || { echo "pycheck: missing"; return 1; }
+}
+
+pydeps() {
+  python3 -m pip --version >/dev/null 2>&1 || { echo "FAIL pip missing on the robot computer"; return 1; }
+  # pip prints a dependency-resolver "ERROR" about unrelated user packages even
+  # when this isolated --target install succeeds: keep its output in a log.
+  if ! python3 -m pip install -q --no-index --find-links "$LAB/wheels" --target "$LAB/pydeps" \
+      "numpy==1.26.4" "opencv-python-headless==4.10.0.84" "pyyaml==6.0.2" > "$RUN/logs/pydeps.txt" 2>&1; then
+    cat "$RUN/logs/pydeps.txt"; return 1
+  fi
+  echo "pydeps installed into $LAB/pydeps (our processes only)"
+  pycheck
+}
+
 cmd=${1:-status}; shift || true
 case "$cmd" in
+  pycheck) pycheck ;;
+  pydeps) pydeps ;;
   prepare) prepare ;;
   up) up "$@" ;;
   down) down ;;
   status) status ;;
   probe) env_setup; python3 "$LAB/bin/lab_probe.py" --seconds "${1:-15}" ;;
+  calibrate) env_setup; bash "$LAB/bin/offline_calibrate.sh" "$RUN" "$LAB/repo/scripts/calib" ;;
   capture)
     env_setup
     seg=$1; secs=$2; shift 2

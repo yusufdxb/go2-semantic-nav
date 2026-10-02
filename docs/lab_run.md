@@ -1,10 +1,11 @@
 # RGB + LiDAR lab run (target: under 10 minutes at the robot)
 
 One script, run on the control PC, deploys to the robot computer, checks
-health and latency, records three short captures and stops. Everything that
-needs thinking (camera calibration, LiDAR-to-camera alignment, latency,
-acceptance) runs afterwards on the control PC from the capture, with the robot
-switched off. Nothing in these scripts commands robot motion; the operator
+health and latency, records three short captures, computes the calibration
+on the robot computer and copies back only the results (a few MB). The raw
+capture stays on the robot computer: the GO2 payload's 2.4 GHz wifi has been
+measured at 0.2-1.4 Mbit/s, far too slow for hundreds of MB inside the time
+budget. Pull it later with `run_lab.sh pull --full`, preferably over the cable. Nothing in these scripts commands robot motion; the operator
 moves the robot with the remote in the yaw step.
 
 ```bash
@@ -13,7 +14,9 @@ scripts/lab/run_lab.sh all chair:1.5:0 chair:3.0:0 chair:2.0:0.8
 
 `label:x:y` are the taped object positions in `base_link` (x forward, y left,
 metres) to the point on each object's surface facing the robot. Each step can
-also be run alone (`run_lab.sh deploy|up|probe|checkerboard|scene ...|yaw|down|pull|offline`).
+also be run alone (`run_lab.sh deploy|up|probe|checkerboard|scene ...|yaw|down|calibrate|pull [--full]|offline`).
+Set `BASE_STACK` (checkout providing `go2_localization`) and `JETSON_HOSTS`
+(addresses to try, default the cable address `192.168.123.18`).
 
 ## Before the session (no robot)
 
@@ -21,19 +24,22 @@ also be run alone (`run_lab.sh deploy|up|probe|checkerboard|scene ...|yaw|down|p
   if it is not 25.0 mm set `SQUARE_M` for the offline step.
 * Tape marks for the objects; objects with flat faces toward the robot.
 * Robot charged; remote in hand; cable or lab wifi to the robot computer.
+* `run_lab.sh wheels` once (needs internet): aarch64 wheels for numpy, OpenCV
+  and PyYAML, installed on the robot computer into a private folder only if
+  its Python lacks them (the lab network has no internet).
 
 ## Timeline
 
 | step | robot time | what happens | operator |
 |---|---|---|---|
-| deploy | ~2-3 min (first build), ~20 s after | robot-computer clock set from the PC, sources copied, `sysctl net.core.rmem_max`, GStreamer/Python/DDS checks, `colcon build` | nothing |
+| deploy | ~2-3 min (first build), ~20 s after | robot-computer clock set from the PC, sources copied, Python deps from wheels if missing, `sysctl net.core.rmem_max`, GStreamer/Python/DDS checks, `colcon build` | nothing |
 | up | ~20 s | base-stack LiDAR relay, C++ camera (Jetson hardware decoder, automatic fallback to software decode if it yields no frames), `lidar_depth_node` | nothing |
-| probe | 15 s | PASS/FAIL table: camera fps, arrival-to-publish p95, DDS delivery, LiDAR and odometry rates, depth density | read the table |
-| checkerboard | <= 2 min, stops early | records at 3 Hz, prints a 4x4 coverage map | sweep the board over corners and centre, 0.5-1.5 m, tilted |
+| probe | 15 s | PASS/FAIL table: camera fps, arrival-to-publish p95, DDS delivery, LiDAR and odometry rates, depth density; asks before continuing on a FAIL | read the table |
+| checkerboard | <= 2 min, stops early | records frames at 3 Hz (no LiDAR), prints a 4x4 coverage map | sweep the board over corners and centre, 0.5-1.5 m, tilted |
 | scene | 15 s | robot still, objects at the taped marks | board out of view |
-| yaw | 30 s | full-rate frames + odometry | yaw slowly left/right with the remote (~0.5 rad/s) |
-| down + pull | ~1-2 min | stop, copy ~150-250 MB to the PC | robot can be powered off |
-| offline | ~1-2 min, no robot | intrinsics, latency, extrinsics, acceptance; `calibration/summary.txt` | read the summary |
+| yaw | 30 s | full-rate frames + odometry (no LiDAR) | yaw slowly left/right with the remote (~0.5 rad/s) |
+| down + calibrate | ~1-2 min | stop; intrinsics, latency, extrinsics, acceptance on the robot computer | robot can sit |
+| pull | ~15 s | results, logs, capture metadata (~3 MB) to `~/rgb_lidar_runs/<UTC>`; `calibration/summary.txt` | read the summary |
 
 ## Pass criteria
 
@@ -73,6 +79,9 @@ files exist, `lidar_depth_node` withholds depth outside these lab runs.
 `jetson_lab.sh` runs on a desktop with `GSN_REHEARSAL=1` (no sudo, loopback
 camera, best-effort DDS buffer), `scripts/lab/fake_go2_sensors.py` (robot-clock
 odometry and LiDAR) and `scripts/bench/rtp_counter_sender.py` (RTP H.264 camera
-stream). The full robot-side sequence (prepare, up with decoder fallback,
-probe, three captures, down) has been rehearsed this way; the offline step's
-PASS path has only been exercised on synthetic captures.
+stream). `run_lab.sh all` itself has been rehearsed end to end on one desktop
+with stand-ins for `ssh`, `sshpass` and `sudo` that run the "remote" side in a
+scratch home folder (forced wheel install, nvv4l2-to-avdec fallback, all
+captures, calibration, results-only pull: exit 0). The calibration tools'
+PASS path has only been exercised on synthetic captures, and nothing has run
+on the robot.
