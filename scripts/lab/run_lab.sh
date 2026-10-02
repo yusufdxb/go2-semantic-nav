@@ -14,6 +14,12 @@
 #   run_lab.sh offline [run_dir]      offline calibration on this PC from a --full pull
 #   run_lab.sh all label:x:y ...      every step above in order, with operator prompts
 #
+#   run_lab.sh mlwheels               BEFORE the session (needs internet): detector wheels + weights (~2 GB)
+#   run_lab.sh mldeploy               copy them over, install privately, check CUDA torch
+#   run_lab.sh slam [name]            2D scan + slam_toolbox mapping + 60 s map autosave (after up)
+#   run_lab.sh semantic [dir]         detector + scene graph, JSON snapshots (after slam; grounding off)
+#   run_lab.sh maps                   copy saved maps and scene graph snapshots here
+#
 # Robot computer: the first answering address in JETSON_HOSTS (default the
 # GO2 payload's cable address 192.168.123.18; add the lab wifi address), or
 # JETSON_HOST to force one. BASE_STACK: checkout of the base navigation stack
@@ -25,6 +31,7 @@ BASE_STACK=${BASE_STACK:-}
 LOCAL_RUNS=${LOCAL_RUNS:-$HOME/rgb_lidar_runs}
 WHEELS=${WHEELS:-$LOCAL_RUNS/wheels}  # cp310 numpy/opencv-headless/pyyaml wheels for offline install
 WHEEL_GLOB=${WHEEL_GLOB:-*aarch64*.whl}  # only the robot computer's architecture goes over the link
+ML=${ML:-$LOCAL_RUNS/ml}  # detector wheels (wheels/) and weights (weights/) for the robot computer
 JETSON_HOSTS=${JETSON_HOSTS:-192.168.123.18}
 T0=$(date +%s)
 
@@ -47,7 +54,8 @@ deploy() {
   r "mkdir -p ~/gsn_ws/src ~/gsn_lab/bin"
   local RS="sshpass -p $PW rsync -az --delete -e ssh"
   $RS --exclude build --exclude __pycache__ "$REPO/ros2_ws/src/go2_front_camera_cpp" "$REPO/ros2_ws/src/go2_rgb_lidar" \
-      "unitree@$H:gsn_ws/src/"
+      "$REPO/ros2_ws/src/go2_semantic_msgs" "$REPO/ros2_ws/src/go2_open_vocab_detector" "$REPO/ros2_ws/src/go2_scene_graph" \
+      "$REPO/ros2_ws/src/go2_language_grounding" "$REPO/ros2_ws/src/go2_semantic_bringup" "unitree@$H:gsn_ws/src/"
   $RS --exclude __pycache__ --exclude test "$BASE_STACK/go2_localization" "unitree@$H:gsn_ws/src/"
   $RS "$REPO/scripts/lab/jetson_lab.sh" "$REPO/scripts/lab/lab_probe.py" "$REPO/scripts/lab/capture_recorder.py" \
       "$REPO/scripts/lab/offline_calibrate.sh" "unitree@$H:gsn_lab/bin/"
@@ -83,6 +91,45 @@ pull() {  # default: calibration results, logs and capture metadata (KB); --full
   du -sh "$dst"
 }
 
+mlwheels() {  # detector stack for JetPack 6 / CUDA 12.6 / Python 3.10 (see docs/jetson_cookbook.md)
+  local idx=https://pypi.jetson-ai-lab.io/jp6/cu126/+simple
+  local w="$ML/wheels"
+  mkdir -p "$w" "$ML/weights"
+  python3 -m pip download -q --no-deps --only-binary=:all: --platform linux_aarch64 --python-version 310 \
+    --implementation cp --index-url "$idx" torch==2.8.0 torchvision==0.23.0 -d "$w"
+  python3 -m pip download -q --no-deps --only-binary=:all: --platform manylinux2014_aarch64 --python-version 310 \
+    --index-url "$idx" nvidia-cusparselt-cu12==0.7.1 -d "$w"
+  python3 -m pip download -q --no-deps --only-binary=:all: --platform manylinux2014_aarch64 --python-version 310 \
+    open_clip_torch==3.3.0 timm==1.0.30 ftfy==6.3.1 wcwidth==0.9.1 -d "$w"
+  python3 -m pip wheel -q --no-deps -w "$w" git+https://github.com/ultralytics/CLIP.git \
+    git+https://github.com/ChaoningZhang/MobileSAM.git
+  # Weights from this PC's caches (fill them with scripts/prefetch_models.py,
+  # and run YOLO-World set_classes once for the CLIP ViT-B/32 text encoder).
+  local hf=$HOME/.cache/huggingface/hub/models--laion--CLIP-ViT-B-16-laion2B-s34B-b88K
+  local src
+  for src in "$REPO/yolov8s-worldv2.pt" "$HOME/.cache/ultralytics/yolov8s-worldv2.pt"; do
+    [ -f "$src" ] && { cp "$src" "$ML/weights/"; break; }
+  done
+  cp "$HOME/.cache/mobile_sam/mobile_sam.pt" "$HOME/.cache/clip/ViT-B-32.pt" "$ML/weights/"
+  cp -rL "$hf" "$ML/weights/"
+  ls "$ML/weights"; du -sh "$ML"
+}
+
+mldeploy() {
+  step "detector wheels + weights to the robot computer (~2 GB, about 5 min on the lab wifi)"
+  r "mkdir -p ~/gsn_lab/ml"
+  sshpass -p "$PW" rsync -a --partial -e ssh "$ML/wheels" "$ML/weights" "unitree@$H:gsn_lab/ml/"
+  step "install (private folder) + CUDA check"
+  lab mlinstall
+}
+
+maps() {
+  step "maps"
+  mkdir -p "$LOCAL_RUNS/maps"
+  sshpass -p "$PW" rsync -az -e ssh "unitree@$H:gsn_lab/maps/" "$LOCAL_RUNS/maps/"
+  du -sh "$LOCAL_RUNS/maps"
+}
+
 offline() {  # on this PC, from a pulled run (pull --full first)
   bash "$REPO/scripts/lab/offline_calibrate.sh" "${1:-$LOCAL_RUNS/latest}" "$REPO/scripts/calib"
 }
@@ -105,6 +152,7 @@ cmd=${1:-}; shift || true
 case "$cmd" in
   offline) offline "$@"; exit 0 ;;
   wheels) wheels; exit 0 ;;
+  mlwheels) mlwheels; exit 0 ;;
 esac
 H=$(host)
 case "$cmd" in
@@ -118,6 +166,10 @@ case "$cmd" in
   status) lab status ;;
   pull) pull "$@" ;;
   calibrate) step "calibrate on the robot computer"; lab calibrate ;;
+  mldeploy) mldeploy ;;
+  slam) step "slam"; lab slam "$@" ;;
+  semantic) step "semantic"; lab semantic "$@" ;;
+  maps) maps ;;
   all)
     [ $# -ge 1 ] || { echo "all: give the taped objects, e.g. chair:1.5:0 chair:3.0:0 chair:2.0:0.8"; exit 64; }
     deploy
@@ -141,5 +193,5 @@ case "$cmd" in
     pull
     step "done (robot time ends here; raw capture stays on the robot computer: run_lab.sh pull --full)"
     ;;
-  *) sed -n '2,20p' "$0"; exit 64 ;;
+  *) sed -n '2,26p' "$0"; exit 64 ;;
 esac

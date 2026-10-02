@@ -10,10 +10,14 @@
 #   jetson_lab.sh capture <segment> <seconds> [recorder args...]
 #   jetson_lab.sh down               stop what `up` started (by process group)
 #   jetson_lab.sh calibrate          offline calibration of the current run, here
+#   jetson_lab.sh mlinstall          detector wheels from $LAB/ml/wheels into $LAB/pydeps_ml (no network)
+#   jetson_lab.sh mlcheck            CUDA torch + detector imports with the private deps
+#   jetson_lab.sh slam [name]        2D scan + slam_toolbox (mapping, repo config) + map autosave every 60 s
+#   jetson_lab.sh semantic [dir]     detector + scene graph (grounding off), JSON snapshots to dir
 #   jetson_lab.sh status
 #
 # Never commands robot motion: it starts sensor relays, the camera driver,
-# the depth projector and recorders only.
+# the depth projector, mapping, perception and recorders only.
 set -uo pipefail
 
 LAB=${GSN_LAB:-$HOME/gsn_lab}
@@ -54,11 +58,19 @@ env_setup() {
   export CYCLONEDDS_URI="${CYCLONEDDS_URI:+$CYCLONEDDS_URI,}$buf"
 }
 
+ml_env() {  # detector only: CUDA torch and model packages from the private folder, no network lookups
+  local t=$LAB/pydeps_ml
+  [ -d "$t/torch" ] || { echo "no $t (run_lab.sh mldeploy)"; return 1; }
+  export PYTHONPATH="$t${PYTHONPATH:+:$PYTHONPATH}"
+  export LD_LIBRARY_PATH="$t/nvidia/cusparselt/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+  export HF_HUB_OFFLINE=1 YOLO_OFFLINE=1
+}
+
 ours() {  # PIDs of processes started from our workspace (matched on the program, not the command text)
   for d in /proc/[0-9]*; do
     local exe
-    exe=$( { tr '\0' ' ' < "$d/cmdline"; } 2>/dev/null | awk '{print $1" "$2}')  # processes can exit mid-scan
-    case "$exe" in *"$WS/install/"*|*"$LAB/bin/capture_recorder.py"*) echo "${d#/proc/}";; esac
+    exe=$( { tr '\0' ' ' < "$d/cmdline"; } 2>/dev/null | awk '{print $1" "$2" "$3}')  # processes can exit mid-scan
+    case "$exe" in *"$WS/install/"*|*"$LAB/bin/capture_recorder.py"*|*" autosave_loop") echo "${d#/proc/}";; esac
   done
 }
 
@@ -94,6 +106,7 @@ prepare() {
   python3 -c "import numpy, cv2, yaml, sensor_msgs_py; print('ok   python numpy', numpy.__version__, 'cv2', cv2.__version__, 'from', cv2.__file__)" \
     || { echo "FAIL python deps (run_lab.sh deploy installs them from wheels)"; fail=1; }
   ( cd "$WS" && colcon build --packages-select go2_front_camera_cpp go2_rgb_lidar go2_localization \
+      go2_semantic_msgs go2_open_vocab_detector go2_scene_graph go2_language_grounding go2_semantic_bringup \
       --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF > "$RUN/logs/colcon.txt" 2>&1 ) \
     && echo "ok   colcon build" || { echo "FAIL colcon build (see $RUN/logs/colcon.txt)"; tail -20 "$RUN/logs/colcon.txt"; fail=1; }
   env_setup
@@ -187,6 +200,69 @@ status() {
   done
 }
 
+mlinstall() {
+  ls "$LAB"/ml/wheels/*.whl >/dev/null 2>&1 || { echo "FAIL no wheels in $LAB/ml/wheels"; return 1; }
+  rm -rf "$LAB/pydeps_ml"
+  # --no-deps: everything else the wheels need is already on the robot computer
+  # (checked on JetPack 6); a resolver run would try the network.
+  python3 -m pip install -q --no-deps --no-index --target "$LAB/pydeps_ml" "$LAB"/ml/wheels/*.whl \
+    > "$RUN/logs/mlinstall.txt" 2>&1 || { cat "$RUN/logs/mlinstall.txt"; return 1; }
+  mkdir -p ~/.cache/ultralytics ~/.cache/mobile_sam ~/.cache/clip ~/.cache/huggingface/hub
+  cp -n "$LAB"/ml/weights/yolov8s-worldv2.pt ~/.cache/ultralytics/
+  cp -n "$LAB"/ml/weights/mobile_sam.pt ~/.cache/mobile_sam/
+  cp -n "$LAB"/ml/weights/ViT-B-32.pt ~/.cache/clip/
+  cp -rn "$LAB"/ml/weights/models--laion--CLIP-ViT-B-16-laion2B-s34B-b88K ~/.cache/huggingface/hub/
+  mlcheck
+}
+
+mlcheck() {
+  env_setup; ml_env || return 1
+  # Library warnings (timm deprecations) go to the log; the verdict line to the screen.
+  python3 - 2> "$RUN/logs/mlcheck.txt" <<'PY' || { tail -5 "$RUN/logs/mlcheck.txt"; return 1; }
+import torch, open_clip, timm, clip, mobile_sam, ultralytics  # noqa: F401
+ok = torch.cuda.is_available()
+print(("ok  " if ok else "FAIL") + f" torch {torch.__version__} cuda {ok} from {torch.__file__}")
+raise SystemExit(0 if ok else 1)
+PY
+}
+
+autosave_loop() {  # name, period: save the live slam_toolbox map, overwriting one name
+  trap 'exit 0' INT TERM
+  env_setup
+  local name=$1 period=$2
+  mkdir -p "$LAB/maps"
+  while true; do
+    sleep "$period" & wait $!
+    timeout 40 ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "{name: {data: $LAB/maps/$name}}" >/dev/null 2>&1 \
+      && timeout 60 ros2 service call /slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph "{filename: $LAB/maps/$name}" >/dev/null 2>&1 \
+      && echo "$(date -u +%H:%M:%S) saved $LAB/maps/$name" || echo "$(date -u +%H:%M:%S) SAVE FAILED"
+  done
+}
+
+slam() {
+  # Repo slam_toolbox config: a scan joins the map only after 0.2 m / 0.2 rad
+  # of motion. Forcing it to add scans while standing still (minimum travel 0)
+  # drifted map->odom by 3.5 m and took 4+ cores within 45 min on the robot.
+  env_setup
+  local name=${1:-map_$(date -u +%Y%m%dT%H%M%SZ)}
+  local cfg="$WS/install/go2_localization/share/go2_localization/config"
+  start scan ros2 run pointcloud_to_laserscan pointcloud_to_laserscan_node --ros-args \
+    --params-file "$cfg/pointcloud_to_laserscan.yaml" -r cloud_in:=/go2/lidar/points -r scan:=/scan
+  start slam ros2 run slam_toolbox async_slam_toolbox_node --ros-args --params-file "$cfg/slam_toolbox.yaml" -p mode:=mapping
+  start autosave bash "$0" autosave_loop "$name" 60
+  echo "map autosave every 60 s to $LAB/maps/$name.{pgm,yaml,posegraph,data}"
+}
+
+semantic() {
+  env_setup; ml_env || return 1
+  local dir=${1:-$LAB/maps/semantic_$(date -u +%Y%m%dT%H%M%SZ)}
+  local det="$WS/install/go2_open_vocab_detector/share/go2_open_vocab_detector/config/detector_rgb_lidar.yaml"
+  start semantic ros2 launch go2_semantic_bringup semantic_nav.launch.py enable_grounding:=false use_rviz:=false \
+    detector_params:="$det" image_topic:=/camera/front/image_raw depth_topic:=/camera/front/lidar_depth \
+    camera_info_topic:=/camera/front/camera_info scene_graph_snapshot_dir:="$dir"
+  echo "scene graph snapshots to $dir (detector loads in ~1 min)"
+}
+
 pycheck() {
   env_setup
   [ "${GSN_FORCE_PYDEPS:-0}" = 1 ] && [ ! -d "$LAB/pydeps" ] && { echo "pycheck: forced miss (rehearsal)"; return 1; }
@@ -209,6 +285,11 @@ cmd=${1:-status}; shift || true
 case "$cmd" in
   pycheck) pycheck ;;
   pydeps) pydeps ;;
+  mlinstall) mlinstall ;;
+  mlcheck) mlcheck ;;
+  slam) slam "$@" ;;
+  semantic) semantic "$@" ;;
+  autosave_loop) autosave_loop "$@" ;;
   prepare) prepare ;;
   up) up "$@" ;;
   down) down ;;
@@ -221,5 +302,5 @@ case "$cmd" in
     python3 "$LAB/bin/capture_recorder.py" --out "$RUN/capture" --segment "$seg" --seconds "$secs" \
       --intrinsics "$(cat "$RUN/intrinsics")" --extrinsics "$(cat "$RUN/extrinsics")" \
       --latency-s "$(cat "$RUN/latency_s")" "$@" ;;
-  *) echo "usage: $0 prepare|up [nvv4l2|avdec]|probe [s]|capture <segment> <s> [args]|down|status"; exit 64 ;;
+  *) echo "usage: $0 prepare|up [nvv4l2|avdec]|probe [s]|capture <segment> <s> [args]|slam [name]|semantic [dir]|mlinstall|mlcheck|down|status"; exit 64 ;;
 esac
