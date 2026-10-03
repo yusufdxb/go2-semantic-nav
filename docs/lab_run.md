@@ -122,8 +122,32 @@ publish (about 1-2 ms per local reader) leaves roughly 10 ms for decode: still
 the largest stage. The NVDEC clock read 115 MHz (its floor) in 18
 of 20 samples while decoding, against a maximum of 858 MHz;
 `enable-max-performance=true` does not raise it, and `enable-full-frame=true`
-made no difference. Whether pinning the NVDEC clock shortens decode has not
-been tested.
+made no difference. Whether holding the NVDEC clock at its maximum shortens
+decode has not been measured on the robot yet.
+
+### NVDEC clock A/B (registered, not yet run)
+
+The test is pre-registered in
+`docs/preregistration/nvdec-clock-latency.md` (claim, arms,
+validity rules, kill criterion and analysis, fixed before any data) and runs
+after `up`:
+
+```bash
+run_lab.sh up nvv4l2      # hardware decoder; no slam or semantic during the test
+run_lab.sh clockab        # robot still, static view, nobody walking through it
+run_lab.sh pull           # brings back clockab/<UTC>/windows.jsonl and analysis.txt
+```
+
+`clockab` runs on the robot computer in the background, so a wifi drop does
+not stop it: six blocks of A (default clocks), B (NVDEC held at max) and C
+(NVDEC and VIC held at max), 25 one-second latency windows per phase with each
+engine's clock read alongside, then `scripts/lab/clockab_analyze.py` prints
+SUPPORTED, NULL or INVALID (an INVALID run, for example a clock write that did
+not take, is repeated, not reported as a null). It changes only the two
+engines' devfreq settings and gives them back on any exit;
+`jetson_lab.sh clockab_stop` or `down` ends it early. To recompute a result
+from a pulled run:
+`python3 scripts/lab/clockab_analyze.py <run>/clockab/<UTC>/windows.jsonl`.
 
 ## Rehearsal without the robot
 

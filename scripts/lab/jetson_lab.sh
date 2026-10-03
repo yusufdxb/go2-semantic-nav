@@ -15,9 +15,13 @@
 #   jetson_lab.sh slam [name]        2D scan + slam_toolbox (mapping, repo config) + map autosave every 60 s
 #   jetson_lab.sh semantic [dir]     detector + scene graph (grounding off), JSON snapshots to dir
 #   jetson_lab.sh status
+#   jetson_lab.sh clockab [blocks]   NVDEC/VIC clock A/B in the background, after up
+#                                    (docs/preregistration/nvdec-clock-latency.md)
+#   jetson_lab.sh clockab_stop       end it early (the clocks are given back either way)
 #
 # Never commands robot motion: it starts sensor relays, the camera driver,
-# the depth projector, mapping, perception and recorders only.
+# the depth projector, mapping, perception and recorders only. clockab
+# changes the NVDEC and VIC clock settings only, and restores them on exit.
 set -uo pipefail
 
 LAB=${GSN_LAB:-$HOME/gsn_lab}
@@ -281,6 +285,178 @@ pydeps() {
   pycheck
 }
 
+# NVDEC/VIC clock A/B, as registered in docs/preregistration/nvdec-clock-latency.md.
+# Changes only the two engines' devfreq settings and gives them back on any exit.
+NVDEC_DF=${GSN_NVDEC_DEVFREQ:-/sys/class/devfreq/15480000.nvdec}
+VIC_DF=${GSN_VIC_DEVFREQ:-/sys/class/devfreq/15340000.vic}
+CLK_SAVE=""
+CLK_METHOD=""
+
+sysw() {  # value, file: a root write here, a plain one in rehearsal (fake devfreq folders)
+  if [ "$REHEARSAL" = 1 ]; then echo "$1" > "$2"; else echo "$PW" | sudo -S -p '' sh -c "echo '$1' > '$2'"; fi
+}
+
+clk() {  # devfreq folder, max|default: hold the engine's clock at max, or give it back its recorded default
+  local d=$1 key; key=$(basename "$1")
+  if [ "$2" = max ]; then
+    if [ "$CLK_METHOD" = governor ]; then sysw performance "$d/governor"; else sysw "$(cat "$d/max_freq")" "$d/min_freq"; fi
+  else
+    sysw "$(cat "$CLK_SAVE/$key.governor")" "$d/governor"
+    sysw "$(cat "$CLK_SAVE/$key.min_freq")" "$d/min_freq"
+  fi
+  if [ "$REHEARSAL" = 1 ]; then  # a fake devfreq folder has no clock behind it: mirror what the setting would do
+    if [ "$2" = max ]; then cat "$d/max_freq" > "$d/cur_freq"; else cat "$d/min_freq" > "$d/cur_freq"; fi
+  fi
+}
+
+clk_restore() {
+  [ -n "$CLK_SAVE" ] || return 0
+  clk "$NVDEC_DF" default; clk "$VIC_DF" default
+  CLK_SAVE=""
+  [ "$REHEARSAL" = 1 ] || { echo "$PW" | sudo -S -p '' tegrastats --stop; } > /dev/null 2>&1
+  local d
+  for d in "$NVDEC_DF" "$VIC_DF"; do
+    echo "clockab: restored $(basename "$d"): $(cat "$d/governor"), min $(cat "$d/min_freq") Hz, now $(cat "$d/cur_freq") Hz"
+  done
+}
+
+clockab_exit() {  # EXIT trap: the clocks never stay held, whatever ends the run
+  clk_restore
+  rm -f "$RUN/pids/clockab"
+}
+
+tegra_start() {  # tegrastats for one phase (power and temperature); none in rehearsal
+  [ "$REHEARSAL" = 1 ] && return 0
+  command -v tegrastats > /dev/null || return 0
+  echo "$PW" | sudo -S -p '' tegrastats --interval 1000 --logfile "$1" --start
+}
+
+tegra_stop() {
+  [ "$REHEARSAL" = 1 ] && return 0
+  command -v tegrastats > /dev/null || return 0
+  echo "$PW" | sudo -S -p '' tegrastats --stop
+  echo "$PW" | sudo -S -p '' chown "$(id -u):$(id -g)" "$1" 2> /dev/null
+  return 0
+}
+
+phase_record() {  # block, phase, order, tegrastats log: one {"kind": "phase"} JSON line
+  python3 - "$@" "$CLK_METHOD" <<'PY'
+import json, re, sys
+block, phase, order, log, method = sys.argv[1:6]
+vdd, tj = [], []
+try:
+    with open(log) as f:
+        for line in f:
+            m = re.search(r"VDD_IN (\d+)mW", line)
+            if m:
+                vdd.append(int(m.group(1)))
+            tj += [float(x) for x in re.findall(r"tj@([0-9.]+)C", line)]
+except OSError:
+    pass
+print(json.dumps({"kind": "phase", "block": int(block), "phase": phase, "order": order, "method": method,
+                  "tegrastats_samples": len(vdd), "vdd_in_mw_avg": round(sum(vdd) / len(vdd)) if vdd else None,
+                  "tj_c_max": max(tj) if tj else None}))
+PY
+}
+
+clockab_run() {  # [blocks] [commit]: the A/B itself; normally started in the background by `clockab`
+  env_setup
+  local blocks=${1:-6} commit=${2:-unknown} root="$RUN/clockab" out data d f
+  for d in "$NVDEC_DF" "$VIC_DF"; do
+    for f in governor cur_freq min_freq max_freq available_governors; do
+      [ -r "$d/$f" ] || { echo "clockab: FAIL cannot read $d/$f (set GSN_NVDEC_DEVFREQ / GSN_VIC_DEVFREQ)"; return 1; }
+    done
+  done
+  if [ "$REHEARSAL" != 1 ] && [ "$(cat "$RUN/decoder" 2> /dev/null)" != nvv4l2 ]; then
+    echo "clockab: FAIL the camera is not on nvv4l2 (decoder: $(cat "$RUN/decoder" 2> /dev/null)); the A/B is about the hardware decoder"
+    return 1
+  fi
+  # Camera first, clocks second: nothing is changed unless the stats topic is live.
+  python3 "$LAB/bin/latency_window.py" --windows 1 --settle 0 --timeout 10 > /dev/null \
+    || { echo "clockab: FAIL no /camera/front/latency within 10 s (run up first)"; return 1; }
+  out="$root/$(date -u +%Y%m%dT%H%M%SZ)"
+  data="$out/windows.jsonl"
+  mkdir -p "$out/defaults"
+  ln -sfn "$out" "$root/latest"
+  for d in "$NVDEC_DF" "$VIC_DF"; do
+    cat "$d/governor" > "$out/defaults/$(basename "$d").governor"
+    cat "$d/min_freq" > "$out/defaults/$(basename "$d").min_freq"
+  done
+  CLK_METHOD=minfreq
+  grep -qw performance "$NVDEC_DF/available_governors" && grep -qw performance "$VIC_DF/available_governors" \
+    && CLK_METHOD=governor
+  CLK_SAVE="$out/defaults"
+  trap clockab_exit EXIT
+  trap 'exit 130' INT TERM HUP
+  local nvp=""
+  [ "$REHEARSAL" = 1 ] || nvp=$( { echo "$PW" | sudo -S -p '' nvpmodel -q; } 2> /dev/null | tr '\n' ' ')
+  python3 - "$out" "$NVDEC_DF" "$VIC_DF" "$CLK_METHOD" "$blocks" "$commit" "$REHEARSAL" \
+    "$(cat "$RUN/decoder" 2> /dev/null)" "$nvp" "$(timeout 8 ros2 node list 2> /dev/null | tr '\n' ' ')" > "$data" <<'PY'
+import datetime, json, pathlib, sys
+out, nv, vic, method, blocks, commit, rehearsal, decoder, nvp, nodes = sys.argv[1:11]
+
+def rd(d, f):
+    try:
+        return pathlib.Path(d, f).read_text().strip()
+    except OSError:
+        return None
+
+cfg = {"kind": "config", "started_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+       "method": method, "blocks": int(blocks), "settle_s": 5, "windows": 25, "commit": commit,
+       "rehearsal": rehearsal == "1", "decoder": decoder or None, "nvpmodel": nvp.strip() or None,
+       "ros_nodes": nodes.split()}
+for eng, d in (("nvdec", nv), ("vic", vic)):
+    key = pathlib.Path(d).name
+    cfg[f"{eng}_devfreq"] = d
+    cfg[f"{eng}_default_governor"] = rd(f"{out}/defaults", f"{key}.governor")
+    cfg[f"{eng}_default_min_hz"] = int(rd(f"{out}/defaults", f"{key}.min_freq"))
+    cfg[f"{eng}_max_hz"] = int(rd(d, "max_freq"))
+    cfg[f"{eng}_available_governors"] = (rd(d, "available_governors") or "").split()
+print(json.dumps(cfg))
+PY
+  echo "clockab: $blocks blocks, clock method $CLK_METHOD, results in $out"
+  local b p order sum
+  local -a orders
+  mapfile -t orders < <(python3 "$LAB/bin/clockab_analyze.py" --schedule "$blocks")
+  for b in $(seq 1 "$blocks"); do
+    order=${orders[$((b - 1))]}
+    for p in $(echo "$order" | fold -w1); do
+      case $p in  # every phase writes both engines' settings, so the switching itself is the same in every arm
+        A) clk "$NVDEC_DF" default; clk "$VIC_DF" default ;;
+        B) clk "$NVDEC_DF" max; clk "$VIC_DF" default ;;
+        C) clk "$NVDEC_DF" max; clk "$VIC_DF" max ;;
+      esac
+      tegra_start "$out/tegrastats_b$b$p.log"
+      sum=$(python3 "$LAB/bin/latency_window.py" --block "$b" --phase "$p" --order "$order" --settle 5 --windows 25 \
+        --timeout 60 --nvdec-devfreq "$NVDEC_DF" --vic-devfreq "$VIC_DF" --out "$data" 2>> "$out/collector.err")
+      tegra_stop "$out/tegrastats_b$b$p.log"
+      phase_record "$b" "$p" "$order" "$out/tegrastats_b$b$p.log" >> "$data"
+      echo "clockab: block $b/$blocks ($order) $p: $sum"
+    done
+  done
+  clk_restore
+  python3 "$LAB/bin/clockab_analyze.py" "$data" > "$out/analysis.txt"
+  local rc=$?
+  sed '/^{/d' "$out/analysis.txt"
+  echo "clockab: done (analysis exit $rc; $out)"
+}
+
+clockab() {  # [blocks] [commit]: start clockab_run in the background; status shows it, clockab_stop ends it
+  if [ -f "$RUN/pids/clockab" ] && kill -0 "$(cat "$RUN/pids/clockab")" 2> /dev/null; then
+    echo "clockab already running (clockab_stop ends it)"
+    return 1
+  fi
+  start clockab bash "$0" clockab_run "$@"
+  echo "clockab started, about $(( ${1:-6} * 100 / 60 + 1 )) min; log $RUN/logs/clockab.log"
+}
+
+clockab_stop() {  # end a running clockab early; its exit trap gives the clocks back
+  [ -f "$RUN/pids/clockab" ] || { echo "clockab not running"; return 0; }
+  kill -INT -- "-$(cat "$RUN/pids/clockab")" 2> /dev/null
+  sleep 3
+  tail -4 "$RUN/logs/clockab.log"
+}
+
 cmd=${1:-status}; shift || true
 case "$cmd" in
   pycheck) pycheck ;;
@@ -294,6 +470,9 @@ case "$cmd" in
   up) up "$@" ;;
   down) down ;;
   status) status ;;
+  clockab) clockab "$@" ;;
+  clockab_run) clockab_run "$@" ;;
+  clockab_stop) clockab_stop ;;
   probe) env_setup; python3 "$LAB/bin/lab_probe.py" --seconds "${1:-15}" ;;
   calibrate) env_setup; bash "$LAB/bin/offline_calibrate.sh" "$RUN" "$LAB/repo/scripts/calib" ;;
   capture)
@@ -302,5 +481,5 @@ case "$cmd" in
     python3 "$LAB/bin/capture_recorder.py" --out "$RUN/capture" --segment "$seg" --seconds "$secs" \
       --intrinsics "$(cat "$RUN/intrinsics")" --extrinsics "$(cat "$RUN/extrinsics")" \
       --latency-s "$(cat "$RUN/latency_s")" "$@" ;;
-  *) echo "usage: $0 prepare|up [nvv4l2|avdec]|probe [s]|capture <segment> <s> [args]|slam [name]|semantic [dir]|mlinstall|mlcheck|down|status"; exit 64 ;;
+  *) echo "usage: $0 prepare|up [nvv4l2|avdec]|probe [s]|capture <segment> <s> [args]|slam [name]|semantic [dir]|mlinstall|mlcheck|clockab [blocks]|clockab_stop|down|status"; exit 64 ;;
 esac

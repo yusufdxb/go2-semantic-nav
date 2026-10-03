@@ -20,6 +20,9 @@
 #   run_lab.sh semantic [dir]         detector + scene graph, JSON snapshots (after slam; grounding off)
 #   run_lab.sh maps                   copy saved maps and scene graph snapshots here
 #
+#   run_lab.sh clockab [blocks]       NVDEC/VIC clock A/B, ~10 min after up, robot still; see
+#                                     docs/preregistration/nvdec-clock-latency.md
+#
 # Robot computer: the first answering address in JETSON_HOSTS (default the
 # GO2 payload's cable address 192.168.123.18; add the lab wifi address), or
 # JETSON_HOST to force one. BASE_STACK: checkout of the base navigation stack
@@ -58,6 +61,7 @@ deploy() {
       "$REPO/ros2_ws/src/go2_language_grounding" "$REPO/ros2_ws/src/go2_semantic_bringup" "unitree@$H:gsn_ws/src/"
   $RS --exclude __pycache__ --exclude test "$BASE_STACK/go2_localization" "unitree@$H:gsn_ws/src/"
   $RS "$REPO/scripts/lab/jetson_lab.sh" "$REPO/scripts/lab/lab_probe.py" "$REPO/scripts/lab/capture_recorder.py" \
+      "$REPO/scripts/lab/latency_window.py" "$REPO/scripts/lab/clockab_analyze.py" \
       "$REPO/scripts/lab/offline_calibrate.sh" "unitree@$H:gsn_lab/bin/"
   # Calibration tools keep their repo-relative layout (they import go2_rgb_lidar from it).
   r "mkdir -p ~/gsn_lab/repo/scripts ~/gsn_lab/repo/ros2_ws/src"
@@ -85,7 +89,7 @@ pull() {  # default: calibration results, logs and capture metadata (KB); --full
   # The robot computer's 2.4 GHz wifi measured 0.2-1.4 Mbit/s: raw frames stay
   # there unless asked for (use the cable for --full).
   [ "${1:-}" = "--full" ] || filt=(--include '*/' --include '*.yaml' --include '*.txt' --include '*.csv' \
-                                   --include '*.log' --include 'overlay/*' --exclude 'frames/*' --exclude 'clouds/*')
+                                   --include '*.log' --include '*.json' --include '*.jsonl' --include 'overlay/*' --exclude 'frames/*' --exclude 'clouds/*')
   sshpass -p "$PW" rsync -az -e ssh "${filt[@]}" "unitree@$H:gsn_lab/runs/current/" "$dst/"
   ln -sfn "$dst" "$LOCAL_RUNS/latest"
   du -sh "$dst"
@@ -148,6 +152,29 @@ wheels() {  # numpy/cv2/yaml for the robot computer's Python 3.10 (aarch64), ins
   ls -la "$WHEELS"/*aarch64*.whl
 }
 
+clockab() {  # start the clock A/B on the robot computer, then follow its log (it keeps running if the wifi drops)
+  local blocks=${1:-6} seen=0 log t_end
+  step "clockab: NVDEC/VIC clock A/B, $blocks blocks (~$(( blocks * 100 / 60 + 1 )) min); robot still, static view"
+  lab clockab "$blocks" "$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)" || return 1
+  t_end=$(( $(date +%s) + blocks * 3 * 75 + 120 ))
+  while [ "$(date +%s)" -lt "$t_end" ]; do
+    sleep 15
+    log=$(r "tail -n +$(( seen + 1 )) ~/gsn_lab/runs/current/logs/clockab.log" 2>/dev/null) \
+      || { echo "(robot computer not answering, retrying)"; continue; }
+    [ -n "$log" ] || continue
+    printf '%s\n' "$log"
+    seen=$(( seen + $(printf '%s\n' "$log" | wc -l) ))
+    case "$log" in  # done: return the analysis exit code (0 SUPPORTED/NULL, 3 INVALID)
+      *"clockab: done"*) return "$(printf '%s\n' "$log" | sed -n 's/^clockab: done (analysis exit \([0-9]*\).*/\1/p' | tail -1)" ;;
+      *"clockab: FAIL"*) return 1 ;;
+    esac
+    r "test -f ~/gsn_lab/runs/current/pids/clockab" 2>/dev/null \
+      || { echo "clockab ended without finishing (log above; the clocks were restored on exit)"; return 1; }
+  done
+  echo "clockab: no end marker in the expected time; check run_lab.sh status"
+  return 1
+}
+
 cmd=${1:-}; shift || true
 case "$cmd" in
   offline) offline "$@"; exit 0 ;;
@@ -170,6 +197,7 @@ case "$cmd" in
   slam) step "slam"; lab slam "$@" ;;
   semantic) step "semantic"; lab semantic "$@" ;;
   maps) maps ;;
+  clockab) clockab "$@" ;;
   all)
     [ $# -ge 1 ] || { echo "all: give the taped objects, e.g. chair:1.5:0 chair:3.0:0 chair:2.0:0.8"; exit 64; }
     deploy
@@ -193,5 +221,5 @@ case "$cmd" in
     pull
     step "done (robot time ends here; raw capture stays on the robot computer: run_lab.sh pull --full)"
     ;;
-  *) sed -n '2,26p' "$0"; exit 64 ;;
+  *) sed -n '2,29p' "$0"; exit 64 ;;
 esac
