@@ -2,6 +2,8 @@
 # Control-PC side of the RGB + LiDAR lab run (target: under 10 minutes at the robot).
 #
 #   run_lab.sh wheels                 BEFORE the session (needs internet): fetch aarch64 Python wheels
+#   run_lab.sh clock                  set the robot-computer clock from this PC if it differs by > 2 s
+#                                     (runs automatically before every other robot-side command)
 #   run_lab.sh deploy                 set robot-computer clock, copy sources, prepare + build
 #   run_lab.sh up [nvv4l2|avdec]      start relay + C++ camera + lidar_depth (nominal calibration)
 #   run_lab.sh probe [seconds]        health + latency table
@@ -175,6 +177,17 @@ clockab() {  # start the clock A/B on the robot computer, then follow its log (i
   return 1
 }
 
+clock() {  # the robot computer has no battery-backed RTC and no internet: it boots at 1970
+  local drift
+  drift=$(r "date -u +%s" | awk -v now="$(date -u +%s)" '{d=now-$1; print (d<0?-d:d)}')
+  if [ "${drift:-999999}" -gt 2 ]; then
+    r "echo $PW | sudo -S -p '' date -u -s '$(date -u '+%Y-%m-%d %H:%M:%S')' >/dev/null"
+    echo "clock: was ${drift}s off, set to $(r 'date -u')"
+  else
+    echo "clock: ok (${drift}s drift)"
+  fi
+}
+
 cmd=${1:-}; shift || true
 case "$cmd" in
   offline) offline "$@"; exit 0 ;;
@@ -182,7 +195,9 @@ case "$cmd" in
   mlwheels) mlwheels; exit 0 ;;
 esac
 H=$(host)
+clock
 case "$cmd" in
+  clock) ;;
   deploy) deploy ;;
   up) step "up"; lab up "${1:-nvv4l2}" ;;
   probe) step "probe"; lab probe "${1:-15}" ;;
