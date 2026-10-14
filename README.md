@@ -54,6 +54,8 @@ Five ROS 2 packages (four Python, one CMake/IDL):
 
 Source tree under `ros2_ws/src/` matches this table 1:1.
 
+An additive C++17 RGB-LiDAR fusion core, isolated ROS 2 adapter, and optional benchmark-gated CUDA visibility backend are documented in [the fusion engine guide](docs/fusion_engine.md). Calibration and timestamp trust are required before publishing valid positions; offline compute benchmarks do not establish deployment readiness.
+
 ### What each package actually does
 
 - **Aligned RGB-D camera inputs (topic names are configurable):**

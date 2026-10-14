@@ -1,0 +1,30 @@
+go2_fusion:
+  ros__parameters:
+    image_topic: /camera/front/image_raw
+    camera_info_topic: /camera/front/camera_info
+    cloud_topic: /go2/lidar/points
+    detections_topic: /fusion/detections_2d
+    semantic_detections_topic: /semantic/detections
+    input_type: semantic
+    backend: cpu
+    output_topic: /fusion/objects
+    fixed_frame: odom
+    camera_frame: front_camera_optical_frame
+    calibration_validated: false
+    timing_validated: false
+    cloud_geometry_validated: false
+    acquisition_clock_validated: false
+    calibration_id: ""
+    intrinsics_file: ""
+    extrinsics_file: ""
+    max_cloud_skew_ms: 50.0
+    pending_timeout_ms: 50.0
+    max_points: 100000
+    max_detections: 64
+    max_input_bytes: 8388608
+    max_mask_bytes: 16777216
+    max_width: 1280
+    max_height: 720
+    history_size: 16
+    pending_size: 2
+    publish_overlay: false
