@@ -81,7 +81,7 @@ class Engine {
   Config cfg_;
   VisibilityFunction accelerator_;
   std::vector<Projected> projected_;
-  std::vector<float> depth_,scratch_,nearest_;
+  std::vector<float> depth_,scratch_;
   std::vector<int> deque_;
   std::vector<uint32_t> candidates_;
   std::vector<Measurement> results_;

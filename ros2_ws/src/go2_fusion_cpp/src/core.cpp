@@ -64,21 +64,40 @@ Engine::Engine(Config cfg,VisibilityFunction accelerator):cfg_(cfg),accelerator_
     throw std::invalid_argument("invalid fusion thresholds");
   size_t pixels=size_t(cfg.max_width)*cfg.max_height;
   if(!accelerator_) {
-    depth_.resize(pixels);scratch_.resize(pixels);nearest_.resize(pixels);
+    depth_.resize(pixels);scratch_.resize(pixels);
     deque_.resize(std::max(cfg.max_width,cfg.max_height));
   }
   projected_.reserve(cfg.max_points);candidates_.reserve(cfg.max_points);
   results_.reserve(cfg.max_detections);tracks_.reserve(cfg.max_tracks);
 }
 size_t Engine::working_bytes() const {
-  return (depth_.capacity()+scratch_.capacity()+nearest_.capacity())*sizeof(float)+
+  return (depth_.capacity()+scratch_.capacity())*sizeof(float)+
     deque_.capacity()*sizeof(int)+projected_.capacity()*sizeof(Projected)+
     candidates_.capacity()*sizeof(uint32_t)+results_.capacity()*sizeof(Measurement)+tracks_.capacity()*sizeof(Track);
 }
 void Engine::reset_tracks() { tracks_.clear();last_stamp_=0;last_frame_.clear(); }
 void Engine::visibility(uint32_t w,uint32_t h) {
+  const uint32_t diameter=2*cfg_.occlusion_radius_px+1;
+  // Sparse LiDAR projections need only their local visibility footprints.
+  // Bound this path by one image worth of probes; dense inputs use the
+  // radius-independent separable filter below.
+  if(uint64_t(projected_.size())*std::min(w,diameter)*std::min(h,diameter)<=uint64_t(w)*h) {
+    for(auto& p:projected_) {
+      p.visible=p.camera_point.z==depth_[p.pixel];
+      if(!p.visible)continue;
+      const int x=p.pixel%w,y=p.pixel/w,r=cfg_.occlusion_radius_px;
+      const int x0=std::max(0,x-r),x1=std::min(int(w)-1,x+r);
+      const int y0=std::max(0,y-r),y1=std::min(int(h)-1,y+r);
+      for(int v=y0;v<=y1&&p.visible;++v)
+        for(int u=x0;u<=x1;++u)
+          if(p.camera_point.z>depth_[size_t(v)*w+u]+cfg_.occlusion_margin_m) {
+            p.visible=false;break;
+          }
+    }
+    return;
+  }
   // Two separable sliding minima, O(width*height) independent of window radius.
-  auto pass=[&](const std::vector<float>& in,std::vector<float>& out,int lines,int length,int stride,int step) {
+  auto pass=[&](const std::vector<float>& in,int lines,int length,int stride,int step,auto emit) {
     for(int line=0;line<lines;++line) {
       int head=0,tail=0,added=-1,base=line*step;
       for(int i=0;i<length;++i) {
@@ -89,14 +108,19 @@ void Engine::visibility(uint32_t w,uint32_t h) {
           deque_[tail++]=added;
         }
         while(head<tail&&deque_[head]<i-cfg_.occlusion_radius_px) ++head;
-        out[base+i*stride]=in[base+deque_[head]*stride];
+        emit(base+i*stride,in[base+deque_[head]*stride]);
       }
     }
   };
-  pass(depth_,scratch_,h,w,1,w);pass(scratch_,nearest_,w,h,w,1);
+  pass(depth_,h,w,1,w,[&](size_t pixel,float nearest){scratch_[pixel]=nearest;});
+  // The horizontal minima no longer depend on depth_. Remove occluded raster
+  // winners in place while computing vertical minima, avoiding a third image.
+  pass(scratch_,w,h,w,1,[&](size_t pixel,float nearest){
+    if(depth_[pixel]>nearest+cfg_.occlusion_margin_m)
+      depth_[pixel]=std::numeric_limits<float>::infinity();
+  });
   // Only nearest-depth returns survive. Association counts each pixel once.
-  for(auto& p:projected_) p.visible=p.camera_point.z==depth_[p.pixel]&&
-    p.camera_point.z<=nearest_[p.pixel]+cfg_.occlusion_margin_m;
+  for(auto& p:projected_) p.visible=p.camera_point.z==depth_[p.pixel];
 }
 Measurement Engine::associate(const Detection& d,size_t index,const Camera& cam,const Context& ctx) {
   Measurement m;m.label_id=d.label_id;m.stamp_ns=ctx.image_ns;

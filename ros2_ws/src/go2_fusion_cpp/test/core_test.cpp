@@ -4,6 +4,7 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -169,6 +170,47 @@ void masks_and_malformed_masks() {
   c.image_ns++; c.cloud_ns++; d.mask_x=16; d.mask_height=0;
   require(process(engine,c,p,{d})==Status::MalformedInput,"empty ROI height rejected");
 }
+void visibility_reference_parity() {
+  std::mt19937 random(76421);
+  const std::vector<std::pair<uint32_t,uint32_t>> shapes={
+    {1,1},{1,13},{17,1},{7,11},{31,17},{64,48}};
+  for(int radius=0;radius<=128;++radius) {
+    auto cfg=configuration();cfg.occlusion_radius_px=radius;
+    cfg.occlusion_margin_m=radius%2?0:0.3;
+    Engine engine(cfg);auto ctx=context();
+    for(const auto& shape:shapes) {
+      Camera cam;cam.width=shape.first;cam.height=shape.second;
+      cam.fx=cam.width;cam.fy=cam.height;
+      cam.cx=(cam.width-1)*0.5;cam.cy=(cam.height-1)*0.5;
+      std::vector<Point> points;
+      for(size_t i=0;i<100;++i) {
+        const auto u=random()%cam.width,v=random()%cam.height;
+        const float z=1+float(random()%48)*0.125F;
+        points.push_back({float((u-cam.cx)*z/cam.fx),float((v-cam.cy)*z/cam.fy),z});
+        if(i%7==0)points.push_back(points.back());
+      }
+      ctx.image_ns++;ctx.cloud_ns=ctx.image_ns;
+      require(process(engine,ctx,points,{},cam)==Status::Valid,"visibility reference input accepted");
+      // Independent square-neighborhood reference using the unmodified
+      // projected depths. No separable filter or in-place pruning is reused.
+      std::vector<float> depth(size_t(cam.width)*cam.height,std::numeric_limits<float>::infinity());
+      for(const auto& p:engine.projected())depth[p.pixel]=std::min(depth[p.pixel],p.camera_point.z);
+      for(const auto& p:engine.projected()) {
+        const int x=p.pixel%cam.width,y=p.pixel/cam.width;
+        float nearest=std::numeric_limits<float>::infinity();
+        for(int v=std::max(0,y-radius);v<=std::min(int(cam.height)-1,y+radius);++v)
+          for(int u=std::max(0,x-radius);u<=std::min(int(cam.width)-1,x+radius);++u)
+            nearest=std::min(nearest,depth[size_t(v)*cam.width+u]);
+        const bool expected=p.camera_point.z==depth[p.pixel]&&p.camera_point.z<=nearest+cfg.occlusion_margin_m;
+        require(p.visible==expected,"visibility parity for radius "+std::to_string(radius)+
+          " at "+std::to_string(cam.width)+"x"+std::to_string(cam.height));
+      }
+      ctx.image_ns++;ctx.cloud_ns=ctx.image_ns;
+      process(engine,ctx,{}, {},cam);
+      require(engine.projected().empty(),"empty cloud following populated visibility");
+    }
+  }
+}
 void trust_and_missing_geometry() {
   for(int field=0;field<3;++field) {
     Engine engine(configuration()); auto c=context();
@@ -279,7 +321,8 @@ int main() {
     {"covariance_and_frame",covariance_and_output_frame},{"unique_support",support_deduplication},
     {"overlapping_objects",overlapping_objects},
     {"accelerator_failure",accelerator_failure},
-    {"occlusion_and_ambiguity",occlusion_and_ambiguity},{"mask_contracts",masks_and_malformed_masks},
+    {"occlusion_and_ambiguity",occlusion_and_ambiguity},{"visibility_reference_parity",visibility_reference_parity},
+    {"mask_contracts",masks_and_malformed_masks},
     {"calibration_and_tf",trust_and_missing_geometry},{"timestamp_limits",timestamp_limits},
     {"malformed_and_capacity",malformed_and_capacity},{"tracker_and_drops",tracker_and_drop_behavior},
     {"sustained_storage",sustained_capacity_stability},{"configuration_rejection",configuration_rejection}};

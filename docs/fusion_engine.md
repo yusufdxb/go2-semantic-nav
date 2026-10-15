@@ -30,17 +30,21 @@ Single-sweep inputs are the deployment reference. Accumulated replay is a stress
 
 ## Storage and synchronization
 
-The default core caps clouds at 100,000 points, detections at 64, tracks at 128, and images at 1280 by 720. The CPU core preallocates approximately 14.7 MB. Optional explicit-copy CUDA uses approximately 3.6 MB of core storage plus 12.9 MB of accelerator storage. CUDA process memory also includes driver/context allocations and must be measured separately; allocation sizes alone are not process RSS.
+The default core caps clouds at 100,000 points, detections at 64, tracks at 128, and images at 1280 by 720. The CPU core preallocates approximately 11.0 MB. Optional explicit-copy CUDA uses approximately 3.6 MB of core storage plus 9.2 MB of accelerator storage (8.4 MB with mapped input). CUDA process memory also includes driver/context allocations and must be measured separately; allocation sizes alone are not process RSS.
 
 The ROS adapter keeps 16 image metadata/cloud/CameraInfo entries and two pending detection batches by default. RGB payloads are retained only when overlays are enabled. Input payloads and mask batches have separate byte caps. Oversized inputs and pending overflow are rejected; waiting for TF or matching messages has a 50 ms deadline and uses nonblocking TF lookups. Label storage is capped. Queue capacities are bounds, not evidence of lossless delivery under overload. Input middleware deserialization, detector messages, TF storage, and output transport have their own memory costs.
 
 ## Optional CUDA
 
-Profiling identified visibility filtering as the CPU bottleneck in recorded workloads. CUDA implements sparse depth rasterization, separable local depth minima, and visibility flags. Camera projection, object-point reduction, uncertainty, and tracking stay on CPU because their measured cost did not justify GPU ports.
+Profiling identified visibility filtering as the CPU bottleneck in recorded workloads. Both backends now adapt to the number of projected returns. The CPU directly checks sparse neighborhoods when their worst-case work fits within one image worth of probes; dense inputs retain the radius-independent separable sliding minimum. It gates raster winners in place, removing one full-image buffer.
+
+CUDA rasterizes sparse returns, then assigns one warp to each projected point to compute its clipped square visibility neighborhood. When the point count times the window diameter exceeds the pixel count, a shared-memory horizontal minimum and sparse vertical queries bound the work instead. Neither CUDA path computes a full-image vertical-minimum raster. Camera projection, object-point reduction, uncertainty, and tracking stay on CPU. Geometry, margin arithmetic, support rules, and invalid-output behavior are unchanged.
 
 The accelerator has preallocated buffers, pinned sparse staging, one nonblocking stream, and one completion synchronization per frame. Transfers contain only `(pixel, depth)` pairs and returned flags; dense depth images remain on device. Every allocation, launch, transfer, and completion status is checked. Failed work is drained and flags cleared; the shared engine invalidates the frame and clears tracks. A requested unavailable backend stops startup. CPU operation remains available by restarting with `backend: cpu`; there is no silent reuse of GPU output.
 
 `backend: cuda_mapped` investigates mapped pinned input when supported. Explicit copy performed better for the sampled single-sweep workload on the development system; this is not a Jetson memory recommendation. Target memory coherency and access behaviour must be measured independently. See [NVIDIA's Tegra memory guidance](https://docs.nvidia.com/cuda/cuda-for-tegra-appnote/index.html#memory-management).
+
+An optional `config/fusion_jetson.yaml` selects explicit-copy CUDA and disables overlays. Repeated on-device recorded-input comparisons showed a consistent P95 improvement for this mode after the sparse visibility optimization. It changes no calibration attestations or default topics. Supply measured calibration and evidence separately, and compare both transfer modes under the intended concurrent workload. The default profile remains CPU. Replay compute timing excludes detector inference, ROS parsing, TF waiting and publication; it does not establish full sensor latency or calibrated accuracy.
 
 CUDA Graphs were not added. The measured kernels and transfer/launch overhead were already small relative to the requested budget. Graph capture, multi-stream pipelines, GPU tracking, custom detector code, and GPU reduction would add complexity without demonstrated need. Revisit only when target profiling identifies a meaningful bottleneck.
 
@@ -56,6 +60,8 @@ ctest --test-dir /data/evaluation/build --output-on-failure
 ```
 
 For sanitizer validation, use a separate CPU build with `-DGO2_FUSION_SANITIZE=ON`. Build optional CUDA with `-DGO2_FUSION_CUDA=ON` and the device's `-DCMAKE_CUDA_ARCHITECTURES`; the deployment target uses architecture 87. The conservative default is 86 with forward-compatible PTX. CUDA toolkit availability is required only for the optional build.
+
+CUDA builds also register `cuda_visibility_test` with CTest; running it requires a matching GPU. Its independent scalar reference covers sparse and dense dispatch, image borders, one-pixel dimensions, supported extreme radii, duplicate returns, margin boundaries, and failure recovery in both transfer modes. The CPU reference test covers every supported radius from 0 to 128. `cuda_visibility_benchmark` additionally checks exact object measurements and tracking against the CPU implementation on recorded inputs.
 
 [Replay extraction and numerical reference checks](../scripts/fusion/README.md) produce `replay.g2f`, audit reports, and diagnostic overlays. The current `G2FUS001` benchmark uses the recording's fixed nominal 1280x720 camera model, fx=fy=537, cx=639.5, cy=359.5, D=0; it must not be used with a different `camera.json`. The shared core and ROS adapter support supplied camera calibration. Binary geometry is always untrusted by default.
 

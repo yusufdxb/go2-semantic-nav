@@ -1,0 +1,6 @@
+# Optional target profile. Supply measured calibration and evidence separately.
+# All validation gates retain their false defaults; this profile grants no trust.
+go2_fusion:
+  ros__parameters:
+    backend: cuda
+    publish_overlay: false

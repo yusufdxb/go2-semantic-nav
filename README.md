@@ -25,8 +25,8 @@ Live 3DGS optimization with densification does not hit near-real-time on Jetson 
 
 - **Target hardware:** NVIDIA Jetson Orin NX 16 GB on Unitree GO2, plus Blackwell consumer GPU dev workstation.
 - **Target latency budget:** sensor to `/goal_pose` under 100 ms on Jetson at 25 W (dev-workstation pipeline runs at 68 ms total on the Blackwell consumer GPU; Jetson on-robot eval pending).
-- **Phase:** Phase 1, scaffold complete, dev-workstation eval landed; first on-robot run with the robot standing still (2026-10-02).
-- **Eval state:** dev numbers in [`RESULTS.md`](RESULTS.md); first on-robot per-stage numbers there too; on-robot eval (calibrated, ≥1000 frames, navigation) not yet run.
+- **Phase:** RGB-LiDAR input support and bounded C++/CUDA fusion implemented; recorded-input fusion and synthetic ROS integration tested on Jetson.
+- **Eval state:** measured compute results in [`RESULTS.md`](RESULTS.md), including the [Jetson fusion comparison](RESULTS.md#c--cuda-fusion-compute-on-jetson-2026-10-15). Full camera-LiDAR alignment, metric position accuracy, sustained detector-plus-fusion operation and real semantic navigation remain unvalidated.
 
 ```mermaid
 flowchart TD
@@ -55,6 +55,13 @@ Five ROS 2 packages (four Python, one CMake/IDL):
 Source tree under `ros2_ws/src/` matches this table 1:1.
 
 An additive C++17 RGB-LiDAR fusion core, isolated ROS 2 adapter, and optional benchmark-gated CUDA visibility backend are documented in [the fusion engine guide](docs/fusion_engine.md). Calibration and timestamp trust are required before publishing valid positions; offline compute benchmarks do not establish deployment readiness.
+
+Three paired Jetson replay rounds under changing concurrent load measured a
+2.38-2.62x CUDA P95 speedup and a 9.20-33.49x CPU P95 speedup after sparse
+visibility optimization, with 3.69 MB less working storage per backend.
+The workload repeats 50 recorded frames; these results measure fusion compute
+and numerical parity, not detector throughput or calibrated localization.
+See [measurements and reproducibility](RESULTS.md#c--cuda-fusion-compute-on-jetson-2026-10-15).
 
 ### What each package actually does
 

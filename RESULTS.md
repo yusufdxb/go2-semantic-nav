@@ -12,7 +12,8 @@ Evaluation numbers for go2-semantic-nav. **Any claim in this file must be measur
 
 ## Latency (per stage, measured within detector node)
 
-All numbers are **p50 / p95** over ≥1000 frames post 100-frame warmup.
+Numbers in the following table are **p50 / p95**. Sample counts and warmup
+are stated with each measurement; later fusion benchmarks use a separate protocol.
 
 | Config | Platform | Detector ms | Segmenter ms | Encoder ms | Backproject ms | Total ms |
 |---|---|---|---|---|---|---|
@@ -50,6 +51,71 @@ The segmenter and encoder are 15-25x slower than on dev-gpu, more than the
 GPU gap alone; why is not yet measured. Live, the detector node ran near
 1 Hz and the scene graph wrote its objects to JSON (see `docs/lab_run.md`).
 Object positions use nominal camera calibration and are not validated.
+
+## C++ / CUDA fusion compute on Jetson (2026-10-15)
+
+Three paired rounds compared the previous fusion implementation with the
+optimized C++ core and CUDA visibility backend. Each backend replayed the same
+50-frame diagnostic input 20 times per round, discarding five warmup frames
+per replay: 1,000 processed frames and 900 timed samples per backend per round.
+These are repeated samples from the readable prefix of an incomplete recording,
+not 1,000 independent captured frames. Backend and variant order were reversed
+in the second round. The baseline checkout was `5fced10`, containing the
+CPU/CUDA implementation introduced in `a33c366`.
+
+Each latency cell below is the median of three per-run P95 values, followed
+by their range in milliseconds. Samples were not pooled. Speedups divide the
+baseline P95 by the optimized P95 within each matched round.
+
+| Backend | Baseline P95 ms, median (range) | Optimized P95 ms, median (range) | Matched-round P95 speedup range |
+|---|---:|---:|---:|
+| C++ CPU | 31.231 (12.390-32.814) | 1.300 (0.980-3.395) | 9.20-33.49x |
+| CUDA, explicit copy | 1.265 (0.953-3.213) | 0.532 (0.390-1.228) | 2.38-2.62x |
+| CUDA, mapped pinned memory | 2.963 (0.923-3.791) | 2.110 (0.337-2.515) | 1.18-2.74x |
+
+The processes ran at nice priority 10 under changing concurrent stack load.
+The baseline CPU maximum reached 630 ms in one round. These observations do
+not establish isolated performance or real-time guarantees. Explicit-copy CUDA
+had the more consistent P95 behavior in these rounds and is selected by the
+optional [Jetson profile](ros2_ws/src/go2_fusion_cpp/config/fusion_jetson.yaml).
+The default profile remains CPU.
+
+Working storage fell by **3,686,400 bytes per backend**: CPU core storage from
+14,677,120 to 10,990,720 bytes; explicit-copy CUDA accelerator storage from
+12,859,200 to 9,172,800 bytes; mapped CUDA accelerator storage from 12,059,200
+to 8,372,800 bytes. CUDA modes retain a separate 3,612,800-byte CPU core.
+Driver contexts, allocator overhead and total process RSS are additional.
+
+Validation results:
+
+- Jetson Release CTest: 2/2 passed, including 15/15 CPU cases and 590,656
+  independent CUDA visibility-flag checks over sparse/dense inputs, borders,
+  margin boundaries, duplicates, resizing, extreme radii, empty input and
+  failure recovery.
+- Recorded replay parity: zero mismatches in 229,510 visibility comparisons
+  and 5,980 exact object-result comparisons per CUDA transfer mode. Explicit
+  accelerator allocations stayed fixed across 20,000 GPU calls per mode.
+- Local AddressSanitizer/UndefinedBehaviorSanitizer: 15/15 CPU cases passed.
+  Local CUDA memcheck and synccheck reported zero errors; racecheck reported
+  zero hazards.
+- Synthetic ROS adapter checks: 21/21 cases for each CPU, CUDA and mapped
+  CUDA locally; 21/21 for CUDA on Jetson, including rejection and timing gates.
+
+**Proof boundary:** these results measure fusion compute and tested numerical
+parity. The replay uses nominal camera geometry and synthetic trust to exercise
+association. It does not validate camera-LiDAR alignment, metric object
+positions, acquisition-clock calibration, detector performance, DDS delivery
+or full sensor-to-output latency. The 63 one-second telemetry samples peaked
+at 66.937 C junction temperature and 19.384 W board power. This short observation
+has no thermal-soak qualification or verified power-mode assumption and is
+separate from the sustained-throughput protocol below.
+
+Sanitized machine-readable evidence:
+[per-run timings](eval/results/fusion_jetson_20261015/paired_comparison.json),
+[summary, input hash and source hashes](eval/results/fusion_jetson_20261015/summary.json),
+and [parity and test summaries](eval/results/fusion_jetson_20261015/validation.json).
+The source recording is not distributed with these results. Implementation and
+reproduction commands are in [the fusion engine guide](docs/fusion_engine.md).
 
 ## Sustained throughput at Jetson 25 W
 
