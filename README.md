@@ -25,7 +25,7 @@ Live 3DGS optimization with densification does not hit near-real-time on Jetson 
 
 - **Target hardware:** NVIDIA Jetson Orin NX 16 GB on Unitree GO2, plus Blackwell consumer GPU dev workstation.
 - **Target latency budget:** sensor to `/goal_pose` under 100 ms on Jetson at 25 W (dev-workstation pipeline runs at 68 ms total on the Blackwell consumer GPU; Jetson on-robot eval pending).
-- **Phase:** RGB-LiDAR input support and bounded C++/CUDA fusion implemented; recorded-input fusion and synthetic ROS integration tested on Jetson.
+- **Phase:** object-centric semantic mapping, RGB-LiDAR input support and bounded C++/CUDA fusion implemented. An optional adapter connects validated fusion positions to the mapper; recorded-input fusion and synthetic ROS integration are tested on Jetson.
 - **Eval state:** measured compute results in [`RESULTS.md`](RESULTS.md), including the [Jetson fusion comparison](RESULTS.md#c--cuda-fusion-compute-on-jetson-2026-10-15). Full camera-LiDAR alignment, metric position accuracy, sustained detector-plus-fusion operation and real semantic navigation remain unvalidated.
 
 ```mermaid
@@ -42,7 +42,7 @@ flowchart TD
     GR --> NAV2
 ```
 
-Five ROS 2 packages (four Python, one CMake/IDL):
+Eight ROS 2 packages (five Python, two C++, one CMake/IDL):
 
 | Package | Role |
 |---|---|
@@ -51,8 +51,13 @@ Five ROS 2 packages (four Python, one CMake/IDL):
 | `go2_scene_graph` | Online 3D object-centric scene graph in `map` frame with spatial relations |
 | `go2_language_grounding` | Text query, chosen object, reachable `PoseStamped` on `/goal_pose`; exposes an action server |
 | `go2_semantic_bringup` | Launch orchestration, RViz preset, composite configs |
+| `go2_rgb_lidar` | Camera-LiDAR depth projection and calibration gates |
+| `go2_front_camera_cpp` | Native front-camera capture and decoding |
+| `go2_fusion_cpp` | Bounded CPU/CUDA fusion and validated position messages |
 
-Source tree under `ros2_ws/src/` matches this table 1:1.
+Source packages are under `ros2_ws/src/`.
+
+The object mapper merges observations using 3D proximity and visual embeddings, publishes spatial edges and RViz markers, and exports JSON snapshots. The [validated fusion mapping guide](docs/fusion_semantic_mapping.md) describes the optional connection from fused positions to that mapper. Snapshots export state; they do not restore tracking across restarts.
 
 An additive C++17 RGB-LiDAR fusion core, isolated ROS 2 adapter, and optional benchmark-gated CUDA visibility backend are documented in [the fusion engine guide](docs/fusion_engine.md). Calibration and timestamp trust are required before publishing valid positions; offline compute benchmarks do not establish deployment readiness.
 
@@ -181,7 +186,7 @@ pip install -r requirements.txt
 
 ```bash
 cd ros2_ws
-colcon build --symlink-install
+colcon build --symlink-install --cmake-args -DGO2_FUSION_ROS=ON
 source install/setup.bash
 ```
 
@@ -209,6 +214,7 @@ ros2 action send_goal /semantic/ground_and_navigate \
 
 | Doc | What it covers |
 |---|---|
+| [`docs/fusion_semantic_mapping.md`](docs/fusion_semantic_mapping.md) | Validated fusion-to-mapper interface, launch options and limits |
 | [`docs/architecture.md`](docs/architecture.md) | Component design, data flow, interface contracts, known constraints |
 | [`docs/system_diagram.md`](docs/system_diagram.md) | Full ROS graph, backend plug points, goal-generation flow, topic + QoS contract |
 | [`docs/deployment.md`](docs/deployment.md) | Jetson install, TensorRT export, launch on the robot |
@@ -227,7 +233,7 @@ ros2 action send_goal /semantic/ground_and_navigate \
 **Phase 1: scaffold complete, dev-workstation eval landed, first on-robot run with the robot standing still.**
 
 What is done:
-- 6 ROS 2 packages build clean; standard ROS nodes are wired end to end.
+- Eight ROS 2 packages are implemented. The optional fusion-to-mapper path passes synthetic ROS tests locally and on Jetson, including TF, association, graph publication, query, snapshots and stale-object expiry.
 - RGB-only GO2 support (`go2_rgb_lidar`): a real GO2 camera frame with a synthetic LiDAR scene runs through the real detector with correct 3D depth (`scripts/smoke_rgb_lidar.py`).
 - On the robot, standing still (2026-10-02, [`docs/lab_run.md`](docs/lab_run.md)): camera 14.3 fps with arrival->publish p50 about 18 ms (p95 19.5 ms before the detector was added, marginal around 25 ms with it), LiDAR depth 4.5 Hz, slam_toolbox map saved to disk, detector + scene graph live on the Orin NX GPU writing the object map to JSON. The camera has not been calibrated, so depth and object positions use nominal values.
 - 9 detector backends, 4 segmenters, 3 encoder families pluggable through `factory.py` (see [`CHANGELOG.md`](CHANGELOG.md)).
@@ -237,7 +243,7 @@ What is done:
 - CI: ruff lint + msgs build + pure-Python unit smoke.
 
 What is **not** done:
-- GO2 front camera calibration (intrinsics, camera-to-LiDAR extrinsics, latency). Until the calibration files exist, depth is withheld outside the lab run and object positions are not validated.
+- Complete GO2 front camera calibration. Measured intrinsics and a horizontal LiDAR correction exist; full camera-to-LiDAR alignment and acquisition timing still require validation. Trust gates remain required, and live object positions are not certified.
 - Robot-side eval on Jetson Orin NX (the ≥1000-frame 25 W and 15 W rows in [`RESULTS.md`](RESULTS.md) are still `<...>` placeholders; only a first 10-cycle measurement exists).
 - Real indoor rosbag suite. Current grounding numbers are on a synthetic single-image scene (`bus.jpg`), useful only as a sanity / honesty signal.
 - Navigation success rate (SR) and SPL: harness exists, numbers not yet captured.

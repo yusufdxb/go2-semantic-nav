@@ -21,6 +21,8 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends \
             python3-pip \
+            build-essential \
+            libyaml-cpp-dev \
             ros-humble-cv-bridge \
             ros-humble-vision-msgs \
             ros-humble-tf2-ros \
@@ -35,12 +37,13 @@ jobs:
         run: |
           ruff check ros2_ws/src eval scripts
 
-      - name: Colcon build (messages + scene_graph — fast path, no ML deps)
+      - name: Colcon build (CPU fusion + scene graph, no ML dependencies)
         shell: bash
         run: |
           source /opt/ros/humble/setup.bash
           cd ros2_ws
-          colcon build --packages-up-to go2_scene_graph --symlink-install
+          colcon build --packages-up-to go2_scene_graph --symlink-install \
+            --cmake-args -DGO2_FUSION_ROS=ON
 
       - name: Unit tests (full pytest suite, config in pyproject.toml)
         shell: bash

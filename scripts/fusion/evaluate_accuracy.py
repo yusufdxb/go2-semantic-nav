@@ -8,12 +8,12 @@ Exit 0: PASS, 2: FAIL, 3: BLOCKED by missing evidence, 1: malformed input.
 from __future__ import annotations
 
 import argparse
-from collections import Counter
 import hashlib
 import json
 import math
-from pathlib import Path
 import sys
+from collections import Counter
+from pathlib import Path
 
 import numpy as np
 import yaml

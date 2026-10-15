@@ -1,9 +1,9 @@
 """Accuracy gates with analytic errors, missing detections and nominal evidence."""
 import copy
 import importlib.util
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 
 import numpy as np
 import yaml

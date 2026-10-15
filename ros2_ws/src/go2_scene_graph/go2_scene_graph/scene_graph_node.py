@@ -324,6 +324,7 @@ class SceneGraphNode(Node):
     def _publish_snapshot(self) -> None:
         from visualization_msgs.msg import MarkerArray  # noqa: F401
 
+        self._store.prune_stale(now_ns=self.get_clock().now().nanoseconds)
         now = self.get_clock().now().to_msg()
         map_frame = str(self.get_parameter("map_frame").value)
 
@@ -395,6 +396,7 @@ class SceneGraphNode(Node):
         self._pub_markers.publish(markers)
 
     def _write_snapshot(self) -> None:
+        self._store.prune_stale(now_ns=self.get_clock().now().nanoseconds)
         publishable = self._store.objects_with_min_observations()
         edges = compute_edges(publishable, self._relation_params)
         latest = latest_snapshot(
@@ -419,6 +421,7 @@ class SceneGraphNode(Node):
         endpoint, we perform a lexical-only match, returning objects whose label
         contains the query substring. CLIP scoring lives in go2_language_grounding.
         """
+        self._store.prune_stale(now_ns=self.get_clock().now().nanoseconds)
         response.success = True
         response.message = "lexical-match only; use go2_language_grounding for CLIP scoring"
         q = (request.text_query or "").strip().lower()

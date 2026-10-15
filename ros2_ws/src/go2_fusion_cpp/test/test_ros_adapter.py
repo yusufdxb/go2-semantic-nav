@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Synthetic isolated ROS adapter safety tests. No hardware or recording mutation."""
 
+import argparse
 import json
 import math
 import os
-import argparse
-from pathlib import Path
 import struct
 import subprocess
 import tempfile
 import time
+from pathlib import Path
 
 
 def main():
@@ -31,16 +31,16 @@ def main():
     os.environ["ROS_LOCALHOST_ONLY"] = "1"
     os.environ["RMW_IMPLEMENTATION"] = "rmw_fastrtps_cpp"
     import rclpy
-    from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
-    from sensor_msgs.msg import Image, CameraInfo, PointCloud2, PointField
+    from builtin_interfaces.msg import Time
     from geometry_msgs.msg import TransformStamped
-    from go2_semantic_msgs.msg import SemanticDetection, SemanticDetectionArray
     from go2_fusion_cpp.msg import FusionArray
+    from go2_semantic_msgs.msg import SemanticDetection, SemanticDetectionArray
+    from rcl_interfaces.srv import GetParameters, SetParameters
+    from rclpy.parameter import Parameter
+    from rclpy.qos import QoSProfile, ReliabilityPolicy
+    from sensor_msgs.msg import CameraInfo, Image, PointCloud2, PointField
     from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
     from tf2_ros.transform_broadcaster import TransformBroadcaster
-    from builtin_interfaces.msg import Time
-    from rclpy.parameter import Parameter
-    from rcl_interfaces.srv import SetParameters, GetParameters
 
     EXE = str(options.executable.resolve())
     TEMP = tempfile.TemporaryDirectory(prefix="fusion_synthetic_")
@@ -62,7 +62,7 @@ def main():
         node.create_publisher(SemanticDetectionArray, "/fusion/test/detections", qos),
     ]
     received = []
-    sub = node.create_subscription(
+    _sub = node.create_subscription(
         FusionArray, "/fusion/test/objects", lambda m: received.append(m), qos
     )
     broadcaster = StaticTransformBroadcaster(node)

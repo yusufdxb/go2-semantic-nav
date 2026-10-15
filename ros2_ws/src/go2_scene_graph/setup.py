@@ -24,6 +24,7 @@ setup(
     entry_points={
         "console_scripts": [
             "scene_graph_node = go2_scene_graph.scene_graph_node:main",
+            "fusion_semantic_adapter = go2_scene_graph.fusion_semantic_adapter:main",
         ],
     },
 )

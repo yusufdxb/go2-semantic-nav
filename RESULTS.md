@@ -206,3 +206,40 @@ python3 eval/run_eval.py --mode rosbag --bag /data/indoor_a.bag \
 ```
 
 Pinned versions: see `requirements.txt` and `docker/{dev,jetson}.Dockerfile`. Hardware spec: this file. Power mode and thermal state: this file.
+
+
+## Semantic mapper integration (2026-10-15)
+
+The existing object-centric mapper now has an optional connection from validated
+C++/CUDA fusion output. It joins original semantic detections with fusion
+results at the exact image stamp and camera frame, preserves visual embeddings,
+and admits only valid fused positions. It never falls back to the detector's
+original 3D estimate. See [launch and interface contracts](docs/fusion_semantic_mapping.md).
+
+Correctness changes reject malformed geometry before mutating tracked objects
+and expire stale objects during graph publication, queries and snapshot export,
+even when detections stop. Directed spatial edges now mean
+“source relation target”; previously several directions were reversed. Grounding
+handles symmetric near/beside edges in either stored orientation. The on
+relation requires known extents and approximate surface contact; unknown zero
+extents cannot establish contact. This corrects relation behavior without
+changing the message schema.
+
+The local Python suite passed 241 tests, including 42 fusion adapter and launch
+checks. Package builds completed locally and on Jetson. Synthetic localhost
+ROS tests passed locally
+and on Jetson: the adapter accepted either input order, replaced deliberately
+incorrect detector centroids with fused positions, transformed positions into
+map, merged three observations into one object, published the graph, served a
+query, wrote JSON snapshots, and expired the object after input stopped. The
+archived JSON retained the expired object with live=false. These tests inject
+semantic and fusion messages; they do not run a live detector or establish
+physical mapping accuracy.
+
+The fused message supplies no object extents or camera depth, so these become
+explicit unknown zeros. Covariance is checked on admission but is not retained
+by the legacy semantic mapper. JSON snapshots are exports, not restart
+checkpoints. The mapper remains a Python reference implementation; the measured
+C++/CUDA optimization applies to fusion compute. Accurate live mapping still
+requires complete camera-LiDAR alignment, trustworthy acquisition timing,
+map-frame localization and held-out object-position measurements.

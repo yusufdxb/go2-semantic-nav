@@ -351,13 +351,22 @@ class GroundingNode(Node):
         if best_ref is None:
             return candidates
 
-        # Prefer edges of the requested type from the graph if available.
+        # Directed edges read as "source relation target". Near/beside is
+        # symmetric and the graph stores each undirected edge only once.
         rel = query.relation
+        symmetric = rel in ("near", "beside")
         allowed_sources = {
             e.source_object_id
             for e in graph.edges
-            if e.relation_type == rel and e.target_object_id == best_ref.object_id
+            if (e.relation_type == rel or (symmetric and e.relation_type in ("near", "beside")))
+            and e.target_object_id == best_ref.object_id
         }
+        if symmetric:
+            allowed_sources.update(
+                e.target_object_id for e in graph.edges
+                if e.relation_type in ("near", "beside")
+                and e.source_object_id == best_ref.object_id
+            )
         if allowed_sources:
             filtered = [c for c in candidates if c.object_id in allowed_sources]
             if filtered:

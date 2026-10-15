@@ -11,14 +11,13 @@ import argparse
 import json
 import math
 import os
-from pathlib import Path
 import sqlite3
 import tempfile
+from pathlib import Path
 
 import yaml
 from rosbags.highlevel import AnyReader, AnyReaderError
 from rosbags.typesys import Stores, TypesysError, get_types_from_msg, get_typestore
-
 
 MESSAGE_TYPE = "go2_fusion_cpp/msg/FusionArray"
 
