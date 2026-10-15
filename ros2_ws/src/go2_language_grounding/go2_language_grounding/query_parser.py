@@ -28,6 +28,8 @@ class ParsedQuery:
     reference_noun: str
     reference_attribute: str
     stand_off_m: Optional[float]
+    # "the nearest chair": among acceptable matches, pick the one closest to the robot.
+    nearest: bool = False
 
 
 # Canonical relation → synonyms / surface forms.
@@ -82,6 +84,13 @@ _ADJECTIVES = {
 }
 
 
+# Superlatives that ask for the closest instance. Removed from the query before the
+# relation pass, so "nearest" never reads as the "near" relation.
+_NEAREST_RE = re.compile(r"\b(nearest|closest)\b")
+# "take me to" is how people ask a guide robot; it carries no relation.
+_LEADING_TAKE_ME = re.compile(r"^(take me|bring me|lead me|guide me)\s+(to\s+)?")
+
+
 def _strip_leading_verb(q: str) -> str:
     s = q
     for verb in sorted(_VERBS, key=len, reverse=True):
@@ -124,8 +133,15 @@ def parse(query: str) -> ParsedQuery:
         stand_off = float(m.group(1))
         q = q[: m.start()].strip()
 
+    nearest = bool(_NEAREST_RE.search(q))
+    if nearest:
+        q = " ".join(_NEAREST_RE.sub(" ", q).split())
+    q = _LEADING_TAKE_ME.sub("", q)
     q = _strip_leading_verb(q)
+    return _parse_body(raw, q, stand_off, nearest)
 
+
+def _parse_body(raw: str, q: str, stand_off: Optional[float], nearest: bool) -> ParsedQuery:
     # Try binary relation: ".. <relation> the <ref>"
     for rel, phrases in _RELATION_PHRASES:
         for phrase in sorted(phrases, key=len, reverse=True):
@@ -158,6 +174,7 @@ def parse(query: str) -> ParsedQuery:
                 reference_noun=ref_noun,
                 reference_attribute=ref_attr,
                 stand_off_m=stand_off,
+                nearest=nearest,
             )
 
     # Unary relation: "go <phrase> the <target>"
@@ -176,6 +193,7 @@ def parse(query: str) -> ParsedQuery:
                     reference_noun="",
                     reference_attribute="",
                     stand_off_m=stand_off,
+                    nearest=nearest,
                 )
 
     # Fall-through: no relation. Attribute + noun from remaining tokens.
@@ -189,4 +207,5 @@ def parse(query: str) -> ParsedQuery:
         reference_noun="",
         reference_attribute="",
         stand_off_m=stand_off,
+        nearest=nearest,
     )

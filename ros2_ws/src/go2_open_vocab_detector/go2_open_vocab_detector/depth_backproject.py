@@ -12,6 +12,29 @@ from dataclasses import dataclass
 import numpy as np
 
 
+def rgbd_alignment_error(
+    *,
+    color_frame: str,
+    depth_frame: str,
+    info_frame: str,
+    color_shape: tuple[int, int],
+    depth_shape: tuple[int, int],
+    info_shape: tuple[int, int],
+) -> str | None:
+    """Return an error unless depth and intrinsics are aligned to the color image."""
+    if not color_frame or depth_frame != color_frame or info_frame != color_frame:
+        return (
+            "RGB, depth, and camera_info must share the color optical frame; "
+            f"got color={color_frame!r}, depth={depth_frame!r}, info={info_frame!r}"
+        )
+    if depth_shape != color_shape or info_shape != color_shape:
+        return (
+            "RGB, depth, and camera_info dimensions must match; "
+            f"got color={color_shape}, depth={depth_shape}, info={info_shape}"
+        )
+    return None
+
+
 @dataclass(frozen=True)
 class CameraIntrinsics:
     fx: float
@@ -40,11 +63,14 @@ def masked_depth_median(
     mask: np.ndarray,
     min_depth_m: float = 0.2,
     max_depth_m: float = 8.0,
+    min_valid_pixels: int = 1,
 ) -> float:
     """Robust median depth over a binary mask, in meters.
 
     Rejects zeros (RealSense invalid-depth sentinel) and out-of-range values.
-    Returns NaN if the valid subset is empty.
+    Returns NaN if fewer than ``min_valid_pixels`` valid pixels remain. A dense
+    RGB-D frame needs 1; a sparse LiDAR-projected frame should demand several
+    returns so one stray point cannot place the object.
     """
     if mask.dtype != bool:
         mask = mask.astype(bool)
@@ -55,7 +81,7 @@ def masked_depth_median(
     valid_mask = mask & (depth_image_mm > int(min_depth_m * 1000)) & (
         depth_image_mm < int(max_depth_m * 1000)
     )
-    if not np.any(valid_mask):
+    if np.count_nonzero(valid_mask) < max(1, int(min_valid_pixels)):
         return float("nan")
     depths_m = depth_image_mm[valid_mask].astype(np.float32) / 1000.0
     return float(np.median(depths_m))
@@ -67,6 +93,7 @@ def object_centroid_3d(
     intr: CameraIntrinsics,
     min_depth_m: float = 0.2,
     max_depth_m: float = 8.0,
+    min_valid_pixels: int = 1,
 ) -> tuple[np.ndarray, float, np.ndarray]:
     """Compute (centroid_3d_camera, depth_median_m, dimensions_xyz) for a mask.
 
@@ -78,7 +105,11 @@ def object_centroid_3d(
     Returns (NaN array, NaN, NaN array) if the mask has no valid depth.
     """
     depth_m = masked_depth_median(
-        depth_image_mm, mask, min_depth_m=min_depth_m, max_depth_m=max_depth_m
+        depth_image_mm,
+        mask,
+        min_depth_m=min_depth_m,
+        max_depth_m=max_depth_m,
+        min_valid_pixels=min_valid_pixels,
     )
     if not np.isfinite(depth_m):
         nan3 = np.full(3, np.nan, dtype=np.float32)
@@ -93,8 +124,10 @@ def object_centroid_3d(
     v_mean = float(np.mean(ys))
     centroid = backproject_pixel(u_mean, v_mean, depth_m, intr)
 
-    u_min, u_max = float(np.min(xs)), float(np.max(xs))
-    v_min, v_max = float(np.min(ys)), float(np.max(ys))
+    # Pixel indices are pixel centres; a mask covering columns [u_min, u_max]
+    # spans (u_max - u_min + 1) pixels, from edge u_min - 0.5 to edge u_max + 0.5.
+    u_min, u_max = float(np.min(xs)) - 0.5, float(np.max(xs)) + 0.5
+    v_min, v_max = float(np.min(ys)) - 0.5, float(np.max(ys)) + 0.5
     p_min = backproject_pixel(u_min, v_min, depth_m, intr)
     p_max = backproject_pixel(u_max, v_max, depth_m, intr)
     dims_xy = np.abs(p_max - p_min)

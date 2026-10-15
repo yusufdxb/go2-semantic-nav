@@ -1,0 +1,20 @@
+# Invalid measurements contain NaN position/covariance and track_id=0.
+uint8 VALID=0
+uint8 UNTRUSTED_CALIBRATION=1
+uint8 MISSING_TRANSFORM=2
+uint8 TIMESTAMP_SKEW=3
+uint8 MALFORMED_INPUT=4
+uint8 CAPACITY_EXCEEDED=5
+uint8 INSUFFICIENT_SUPPORT=6
+uint8 AMBIGUOUS_DEPTH=7
+uint8 OUT_OF_ORDER=8
+uint8 BACKEND_ERROR=9
+string label
+float32 detector_score
+uint8 status
+string status_detail
+bool valid
+uint64 track_id
+uint32 support_points
+geometry_msgs/Point position
+float64[9] covariance

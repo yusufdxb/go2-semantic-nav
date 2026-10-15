@@ -1,0 +1,28 @@
+# GO2 front camera, NOMINAL intrinsics: NOT a calibration.
+# Derived from the documented stream format (1280x720, 100 deg horizontal FOV):
+# fx = 640 / tan(50 deg) = 537.0, square pixels, centred principal point, no
+# distortion. A 100 deg lens has strong barrel distortion, so off-centre pixels
+# will be several pixels off. Replace with a real calibration
+# (docs/rgb_lidar_calibration.md) before trusting 3D positions.
+# Format: ROS camera_calibration (ost.yaml) plus the `nominal` flag.
+nominal: true
+image_width: 1280
+image_height: 720
+camera_name: go2_front_camera
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [537.0, 0.0, 639.5, 0.0, 537.0, 359.5, 0.0, 0.0, 1.0]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [0.0, 0.0, 0.0, 0.0, 0.0]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [537.0, 0.0, 639.5, 0.0, 0.0, 537.0, 359.5, 0.0, 0.0, 0.0, 1.0, 0.0]

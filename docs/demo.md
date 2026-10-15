@@ -1,14 +1,14 @@
 # Demo procedure
 
-A 10-minute live demo that makes the capability unambiguous. Designed for a recruiter, lab PI, or paper reviewer. Three takes are budgeted: *dry_run*, *commit*, *recovery*.
+A live demo procedure for capabilities that have already passed the hardware gates. Until motion acceptance is complete, run only the motors-disabled dry-run and recovery cases.
 
 ## Preconditions (check before the recorder is on)
 
 - [ ] GO2 booted, crouched, motors off (Unitree app → motors disabled).
-- [ ] Jetson on `192.168.123.15`, pings GO2 at `192.168.123.161`.
+- [ ] Jetson and GO2 are reachable through the current lab-approved network path.
 - [ ] RealSense streaming: `ros2 topic hz /camera/color/image_raw` shows ≥15 Hz.
 - [ ] TF tree healthy: `ros2 run tf2_tools view_frames` shows `map → odom → base_link → camera_color_optical_frame`.
-- [ ] Nav2 lifecycle nodes active: `ros2 lifecycle get /bt_navigator` → `active`.
+- [ ] For a motion demo only, the full base-navigation acceptance gate in `docs/jetson_cookbook.md` has passed.
 - [ ] Semantic-nav overlay launched, `/semantic/scene_graph` publishing with ≥8 objects (for a small room after a 20-second scan).
 - [ ] RViz preset `go2_semantic_nav.rviz` open with layers: map, costmap, object markers, grounding goal marker, camera image.
 
@@ -36,6 +36,8 @@ Narration:
 > "The system found two chairs in the graph. The red one scored 0.82, the other 0.41. It picked the higher-scoring one and computed a reachable stand-off pose from the costmap."
 
 ### Take 2: Commit ("now go there")
+Do not run this section until the motion acceptance gate has passed and the launch was explicitly started with `allow_goal_publication:=true`.
+
 Operator runs:
 ```bash
 ros2 action send_goal /semantic/ground_and_navigate \
@@ -64,7 +66,7 @@ If the scene graph does not contain a window (it typically will, via open-vocab 
 
 If motors must stay off:
 - Use `dry_run: true` for all queries. The value proposition, open-vocab grounding, live scene graph, goal generation, is already complete in RViz.
-- Publish a simulated base pose via `static_transform_publisher` to fake odometry.
+- Replay a labeled simulation or rosbag when a real base pose is unavailable. Do not present a fabricated static transform as hardware evidence.
 
 If scene-graph is empty:
 - Walk the camera handheld through the room for 30 seconds first.
@@ -75,7 +77,7 @@ If scene-graph is empty:
 - **Open vocabulary.** Try a class not in the prompt list mid-demo ("approach the backpack"), the system may or may not find it; use this to talk about the burst-mode OWLv2 fallback.
 - **Failure honesty.** Show a query that returns `success=false` rather than hiding it.
 - **Edge deployment.** In `tegrastats`, point out sustained GPU <90% at 25 W during steady-state detection.
-- **Modularity.** Kill the detector node mid-demo: `ros2 lifecycle set /go2_open_vocab_detector deactivate`. The seeing-eye-dog stack keeps running.
+- **Modularity.** Stop the semantic overlay launch process. The independent base stack should keep running.
 
 ## What NOT to say on camera
 

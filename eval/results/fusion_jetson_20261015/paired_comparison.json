@@ -1,0 +1,704 @@
+[
+  {
+    "round": 0,
+    "variant": "baseline",
+    "backend": "cpu",
+    "frames": 1000,
+    "samples": 900,
+    "max_points": 11773,
+    "invalid_frames": 20,
+    "valid_measurements": 260,
+    "association_exercised_with_synthetic_trust": true,
+    "metric_accuracy_validated": false,
+    "sensor_to_output_ms": null,
+    "core_working_bytes": 14677120,
+    "cuda_working_bytes": 0,
+    "fusion": {
+      "p50_ms": 12.0188,
+      "p95_ms": 12.3903,
+      "p99_ms": 12.6542,
+      "max_ms": 16.5765
+    },
+    "projection": {
+      "p50_ms": 0.314464,
+      "p95_ms": 0.360544,
+      "p99_ms": 0.37744,
+      "max_ms": 0.652768
+    },
+    "visibility": {
+      "p50_ms": 11.6873,
+      "p95_ms": 12.0494,
+      "p99_ms": 12.2798,
+      "max_ms": 16.2028
+    },
+    "association": {
+      "p50_ms": 0.018432,
+      "p95_ms": 0.035552,
+      "p99_ms": 0.037376,
+      "max_ms": 0.04688
+    }
+  },
+  {
+    "round": 0,
+    "variant": "optimized",
+    "backend": "cpu",
+    "frames": 1000,
+    "samples": 900,
+    "max_points": 11773,
+    "invalid_frames": 20,
+    "valid_measurements": 260,
+    "association_exercised_with_synthetic_trust": true,
+    "metric_accuracy_validated": false,
+    "sensor_to_output_ms": null,
+    "core_working_bytes": 10990720,
+    "cuda_working_bytes": 0,
+    "fusion": {
+      "p50_ms": 0.572064,
+      "p95_ms": 1.30045,
+      "p99_ms": 1.51466,
+      "max_ms": 1.86627
+    },
+    "projection": {
+      "p50_ms": 0.29184,
+      "p95_ms": 0.333152,
+      "p99_ms": 0.358528,
+      "max_ms": 0.47008
+    },
+    "visibility": {
+      "p50_ms": 0.259104,
+      "p95_ms": 0.946912,
+      "p99_ms": 1.14573,
+      "max_ms": 1.46976
+    },
+    "association": {
+      "p50_ms": 0.015424,
+      "p95_ms": 0.033856,
+      "p99_ms": 0.036096,
+      "max_ms": 0.056096
+    }
+  },
+  {
+    "round": 0,
+    "variant": "baseline",
+    "backend": "cuda",
+    "frames": 1000,
+    "samples": 900,
+    "max_points": 11773,
+    "invalid_frames": 20,
+    "valid_measurements": 260,
+    "association_exercised_with_synthetic_trust": true,
+    "metric_accuracy_validated": false,
+    "sensor_to_output_ms": null,
+    "core_working_bytes": 3612800,
+    "cuda_working_bytes": 12859200,
+    "fusion": {
+      "p50_ms": 0.805696,
+      "p95_ms": 1.26458,
+      "p99_ms": 2.43443,
+      "max_ms": 4.37696
+    },
+    "projection": {
+      "p50_ms": 0.137344,
+      "p95_ms": 0.241312,
+      "p99_ms": 0.537536,
+      "max_ms": 3.65638
+    },
+    "visibility": {
+      "p50_ms": 0.641024,
+      "p95_ms": 1.04954,
+      "p99_ms": 1.67664,
+      "max_ms": 4.08771
+    },
+    "association": {
+      "p50_ms": 0.01648,
+      "p95_ms": 0.034464,
+      "p99_ms": 0.073472,
+      "max_ms": 0.168096
+    }
+  },
+  {
+    "round": 0,
+    "variant": "optimized",
+    "backend": "cuda",
+    "frames": 1000,
+    "samples": 900,
+    "max_points": 11773,
+    "invalid_frames": 20,
+    "valid_measurements": 260,
+    "association_exercised_with_synthetic_trust": true,
+    "metric_accuracy_validated": false,
+    "sensor_to_output_ms": null,
+    "core_working_bytes": 3612800,
+    "cuda_working_bytes": 9172800,
+    "fusion": {
+      "p50_ms": 0.310208,
+      "p95_ms": 0.531648,
+      "p99_ms": 0.624256,
+      "max_ms": 1.46195
+    },
+    "projection": {
+      "p50_ms": 0.13792,
+      "p95_ms": 0.194048,
+      "p99_ms": 0.314112,
+      "max_ms": 0.674496
+    },
+    "visibility": {
+      "p50_ms": 0.146144,
+      "p95_ms": 0.331808,
+      "p99_ms": 0.43152,
+      "max_ms": 0.550368
+    },
+    "association": {
+      "p50_ms": 0.015744,
+      "p95_ms": 0.033248,
+      "p99_ms": 0.054176,
+      "max_ms": 0.688448
+    }
+  },
+  {
+    "round": 0,
+    "variant": "baseline",
+    "backend": "cuda_mapped",
+    "frames": 1000,
+    "samples": 900,
+    "max_points": 11773,
+    "invalid_frames": 20,
+    "valid_measurements": 260,
+    "association_exercised_with_synthetic_trust": true,
+    "metric_accuracy_validated": false,
+    "sensor_to_output_ms": null,
+    "core_working_bytes": 3612800,
+    "cuda_working_bytes": 12059200,
+    "fusion": {
+      "p50_ms": 0.840032,
+      "p95_ms": 2.96275,
+      "p99_ms": 3.06499,
+      "max_ms": 6.44342
+    },
+    "projection": {
+      "p50_ms": 0.137216,
+      "p95_ms": 0.200384,
+      "p99_ms": 0.340352,
+      "max_ms": 1.4199
+    },
+    "visibility": {
+      "p50_ms": 0.655808,
+      "p95_ms": 2.80378,
+      "p99_ms": 2.90589,
+      "max_ms": 6.08976
+    },
+    "association": {
+      "p50_ms": 0.017184,
+      "p95_ms": 0.035936,
+      "p99_ms": 0.116128,
+      "max_ms": 0.254528
+    }
+  },
+  {
+    "round": 0,
+    "variant": "optimized",
+    "backend": "cuda_mapped",
+    "frames": 1000,
+    "samples": 900,
+    "max_points": 11773,
+    "invalid_frames": 20,
+    "valid_measurements": 260,
+    "association_exercised_with_synthetic_trust": true,
+    "metric_accuracy_validated": false,
+    "sensor_to_output_ms": null,
+    "core_working_bytes": 3612800,
+    "cuda_working_bytes": 8372800,
+    "fusion": {
+      "p50_ms": 0.311008,
+      "p95_ms": 2.51526,
+      "p99_ms": 2.85882,
+      "max_ms": 3.60461
+    },
+    "projection": {
+      "p50_ms": 0.137632,
+      "p95_ms": 0.190208,
+      "p99_ms": 0.381344,
+      "max_ms": 1.39181
+    },
+    "visibility": {
+      "p50_ms": 0.14112,
+      "p95_ms": 2.35366,
+      "p99_ms": 2.67885,
+      "max_ms": 3.32147
+    },
+    "association": {
+      "p50_ms": 0.015936,
+      "p95_ms": 0.034272,
+      "p99_ms": 0.049088,
+      "max_ms": 2.04157
+    }
+  },
+  {
+    "round": 1,
+    "variant": "optimized",
+    "backend": "cuda_mapped",
+    "frames": 1000,
+    "samples": 900,
+    "max_points": 11773,
+    "invalid_frames": 20,
+    "valid_measurements": 260,
+    "association_exercised_with_synthetic_trust": true,
+    "metric_accuracy_validated": false,
+    "sensor_to_output_ms": null,
+    "core_working_bytes": 3612800,
+    "cuda_working_bytes": 8372800,
+    "fusion": {
+      "p50_ms": 0.280224,
+      "p95_ms": 0.336672,
+      "p99_ms": 0.454208,
+      "max_ms": 0.599552
+    },
+    "projection": {
+      "p50_ms": 0.13728,
+      "p95_ms": 0.149888,
+      "p99_ms": 0.22288,
+      "max_ms": 0.394784
+    },
+    "visibility": {
+      "p50_ms": 0.126688,
+      "p95_ms": 0.15888,
+      "p99_ms": 0.220896,
+      "max_ms": 0.43952
+    },
+    "association": {
+      "p50_ms": 0.015424,
+      "p95_ms": 0.032736,
+      "p99_ms": 0.035168,
+      "max_ms": 0.094304
+    }
+  },
+  {
+    "round": 1,
+    "variant": "baseline",
+    "backend": "cuda_mapped",
+    "frames": 1000,
+    "samples": 900,
+    "max_points": 11773,
+    "invalid_frames": 20,
+    "valid_measurements": 260,
+    "association_exercised_with_synthetic_trust": true,
+    "metric_accuracy_validated": false,
+    "sensor_to_output_ms": null,
+    "core_working_bytes": 3612800,
+    "cuda_working_bytes": 12059200,
+    "fusion": {
+      "p50_ms": 0.772544,
+      "p95_ms": 0.923488,
+      "p99_ms": 1.23766,
+      "max_ms": 2.83741
+    },
+    "projection": {
+      "p50_ms": 0.136896,
+      "p95_ms": 0.183104,
+      "p99_ms": 0.32672,
+      "max_ms": 1.22838
+    },
+    "visibility": {
+      "p50_ms": 0.613984,
+      "p95_ms": 0.679968,
+      "p99_ms": 0.913856,
+      "max_ms": 1.4503
+    },
+    "association": {
+      "p50_ms": 0.016416,
+      "p95_ms": 0.033824,
+      "p99_ms": 0.063712,
+      "max_ms": 1.59808
+    }
+  },
+  {
+    "round": 1,
+    "variant": "optimized",
+    "backend": "cuda",
+    "frames": 1000,
+    "samples": 900,
+    "max_points": 11773,
+    "invalid_frames": 20,
+    "valid_measurements": 260,
+    "association_exercised_with_synthetic_trust": true,
+    "metric_accuracy_validated": false,
+    "sensor_to_output_ms": null,
+    "core_working_bytes": 3612800,
+    "cuda_working_bytes": 9172800,
+    "fusion": {
+      "p50_ms": 0.28736,
+      "p95_ms": 0.390016,
+      "p99_ms": 0.587776,
+      "max_ms": 2.84893
+    },
+    "projection": {
+      "p50_ms": 0.137152,
+      "p95_ms": 0.165792,
+      "p99_ms": 0.327552,
+      "max_ms": 2.11392
+    },
+    "visibility": {
+      "p50_ms": 0.133888,
+      "p95_ms": 0.178144,
+      "p99_ms": 0.338592,
+      "max_ms": 1.59574
+    },
+    "association": {
+      "p50_ms": 0.015712,
+      "p95_ms": 0.033056,
+      "p99_ms": 0.034912,
+      "max_ms": 0.216544
+    }
+  },
+  {
+    "round": 1,
+    "variant": "baseline",
+    "backend": "cuda",
+    "frames": 1000,
+    "samples": 900,
+    "max_points": 11773,
+    "invalid_frames": 20,
+    "valid_measurements": 260,
+    "association_exercised_with_synthetic_trust": true,
+    "metric_accuracy_validated": false,
+    "sensor_to_output_ms": null,
+    "core_working_bytes": 3612800,
+    "cuda_working_bytes": 12859200,
+    "fusion": {
+      "p50_ms": 0.783552,
+      "p95_ms": 0.952992,
+      "p99_ms": 1.21712,
+      "max_ms": 2.01139
+    },
+    "projection": {
+      "p50_ms": 0.137024,
+      "p95_ms": 0.179424,
+      "p99_ms": 0.374912,
+      "max_ms": 1.23786
+    },
+    "visibility": {
+      "p50_ms": 0.626336,
+      "p95_ms": 0.701056,
+      "p99_ms": 0.879424,
+      "max_ms": 1.86854
+    },
+    "association": {
+      "p50_ms": 0.016192,
+      "p95_ms": 0.034048,
+      "p99_ms": 0.05504,
+      "max_ms": 0.366816
+    }
+  },
+  {
+    "round": 1,
+    "variant": "optimized",
+    "backend": "cpu",
+    "frames": 1000,
+    "samples": 900,
+    "max_points": 11773,
+    "invalid_frames": 20,
+    "valid_measurements": 260,
+    "association_exercised_with_synthetic_trust": true,
+    "metric_accuracy_validated": false,
+    "sensor_to_output_ms": null,
+    "core_working_bytes": 10990720,
+    "cuda_working_bytes": 0,
+    "fusion": {
+      "p50_ms": 0.53248,
+      "p95_ms": 0.979904,
+      "p99_ms": 1.1767,
+      "max_ms": 1.3928
+    },
+    "projection": {
+      "p50_ms": 0.289024,
+      "p95_ms": 0.326144,
+      "p99_ms": 0.349024,
+      "max_ms": 0.389344
+    },
+    "visibility": {
+      "p50_ms": 0.23264,
+      "p95_ms": 0.64128,
+      "p99_ms": 0.82048,
+      "max_ms": 1.01254
+    },
+    "association": {
+      "p50_ms": 0.015168,
+      "p95_ms": 0.032832,
+      "p99_ms": 0.03536,
+      "max_ms": 0.05296
+    }
+  },
+  {
+    "round": 1,
+    "variant": "baseline",
+    "backend": "cpu",
+    "frames": 1000,
+    "samples": 900,
+    "max_points": 11773,
+    "invalid_frames": 20,
+    "valid_measurements": 260,
+    "association_exercised_with_synthetic_trust": true,
+    "metric_accuracy_validated": false,
+    "sensor_to_output_ms": null,
+    "core_working_bytes": 14677120,
+    "cuda_working_bytes": 0,
+    "fusion": {
+      "p50_ms": 15.5501,
+      "p95_ms": 32.8136,
+      "p99_ms": 68.7226,
+      "max_ms": 629.955
+    },
+    "projection": {
+      "p50_ms": 0.319584,
+      "p95_ms": 1.18688,
+      "p99_ms": 2.80838,
+      "max_ms": 9.11421
+    },
+    "visibility": {
+      "p50_ms": 15.1596,
+      "p95_ms": 32.3315,
+      "p99_ms": 68.363,
+      "max_ms": 629.646
+    },
+    "association": {
+      "p50_ms": 0.020768,
+      "p95_ms": 0.040512,
+      "p99_ms": 0.124256,
+      "max_ms": 4.70477
+    }
+  },
+  {
+    "round": 2,
+    "variant": "baseline",
+    "backend": "cpu",
+    "frames": 1000,
+    "samples": 900,
+    "max_points": 11773,
+    "invalid_frames": 20,
+    "valid_measurements": 260,
+    "association_exercised_with_synthetic_trust": true,
+    "metric_accuracy_validated": false,
+    "sensor_to_output_ms": null,
+    "core_working_bytes": 14677120,
+    "cuda_working_bytes": 0,
+    "fusion": {
+      "p50_ms": 15.2548,
+      "p95_ms": 31.2306,
+      "p99_ms": 45.4987,
+      "max_ms": 61.7811
+    },
+    "projection": {
+      "p50_ms": 0.328512,
+      "p95_ms": 1.05942,
+      "p99_ms": 2.10726,
+      "max_ms": 8.37942
+    },
+    "visibility": {
+      "p50_ms": 14.8663,
+      "p95_ms": 30.7454,
+      "p99_ms": 45.1314,
+      "max_ms": 61.3567
+    },
+    "association": {
+      "p50_ms": 0.0208,
+      "p95_ms": 0.041184,
+      "p99_ms": 0.186624,
+      "max_ms": 2.33674
+    }
+  },
+  {
+    "round": 2,
+    "variant": "optimized",
+    "backend": "cpu",
+    "frames": 1000,
+    "samples": 900,
+    "max_points": 11773,
+    "invalid_frames": 20,
+    "valid_measurements": 260,
+    "association_exercised_with_synthetic_trust": true,
+    "metric_accuracy_validated": false,
+    "sensor_to_output_ms": null,
+    "core_working_bytes": 10990720,
+    "cuda_working_bytes": 0,
+    "fusion": {
+      "p50_ms": 0.62016,
+      "p95_ms": 3.39517,
+      "p99_ms": 6.63299,
+      "max_ms": 13.3166
+    },
+    "projection": {
+      "p50_ms": 0.303552,
+      "p95_ms": 1.67725,
+      "p99_ms": 3.63069,
+      "max_ms": 8.39648
+    },
+    "visibility": {
+      "p50_ms": 0.249952,
+      "p95_ms": 2.11133,
+      "p99_ms": 4.61018,
+      "max_ms": 10.4154
+    },
+    "association": {
+      "p50_ms": 0.016128,
+      "p95_ms": 0.038016,
+      "p99_ms": 0.227936,
+      "max_ms": 2.8665
+    }
+  },
+  {
+    "round": 2,
+    "variant": "baseline",
+    "backend": "cuda",
+    "frames": 1000,
+    "samples": 900,
+    "max_points": 11773,
+    "invalid_frames": 20,
+    "valid_measurements": 260,
+    "association_exercised_with_synthetic_trust": true,
+    "metric_accuracy_validated": false,
+    "sensor_to_output_ms": null,
+    "core_working_bytes": 3612800,
+    "cuda_working_bytes": 12859200,
+    "fusion": {
+      "p50_ms": 1.15363,
+      "p95_ms": 3.21258,
+      "p99_ms": 5.51082,
+      "max_ms": 12.1549
+    },
+    "projection": {
+      "p50_ms": 0.138688,
+      "p95_ms": 0.809824,
+      "p99_ms": 2.93123,
+      "max_ms": 6.31536
+    },
+    "visibility": {
+      "p50_ms": 0.958624,
+      "p95_ms": 2.58125,
+      "p99_ms": 4.04762,
+      "max_ms": 12.0124
+    },
+    "association": {
+      "p50_ms": 0.016512,
+      "p95_ms": 0.035104,
+      "p99_ms": 0.210048,
+      "max_ms": 2.04566
+    }
+  },
+  {
+    "round": 2,
+    "variant": "optimized",
+    "backend": "cuda",
+    "frames": 1000,
+    "samples": 900,
+    "max_points": 11773,
+    "invalid_frames": 20,
+    "valid_measurements": 260,
+    "association_exercised_with_synthetic_trust": true,
+    "metric_accuracy_validated": false,
+    "sensor_to_output_ms": null,
+    "core_working_bytes": 3612800,
+    "cuda_working_bytes": 9172800,
+    "fusion": {
+      "p50_ms": 0.301056,
+      "p95_ms": 1.22848,
+      "p99_ms": 2.53843,
+      "max_ms": 6.67754
+    },
+    "projection": {
+      "p50_ms": 0.137632,
+      "p95_ms": 0.260256,
+      "p99_ms": 1.37907,
+      "max_ms": 5.69843
+    },
+    "visibility": {
+      "p50_ms": 0.141824,
+      "p95_ms": 0.504864,
+      "p99_ms": 1.92378,
+      "max_ms": 6.50826
+    },
+    "association": {
+      "p50_ms": 0.015936,
+      "p95_ms": 0.033504,
+      "p99_ms": 0.105024,
+      "max_ms": 1.908
+    }
+  },
+  {
+    "round": 2,
+    "variant": "baseline",
+    "backend": "cuda_mapped",
+    "frames": 1000,
+    "samples": 900,
+    "max_points": 11773,
+    "invalid_frames": 20,
+    "valid_measurements": 260,
+    "association_exercised_with_synthetic_trust": true,
+    "metric_accuracy_validated": false,
+    "sensor_to_output_ms": null,
+    "core_working_bytes": 3612800,
+    "cuda_working_bytes": 12059200,
+    "fusion": {
+      "p50_ms": 0.871072,
+      "p95_ms": 3.79066,
+      "p99_ms": 6.40211,
+      "max_ms": 13.5542
+    },
+    "projection": {
+      "p50_ms": 0.13888,
+      "p95_ms": 0.835872,
+      "p99_ms": 2.848,
+      "max_ms": 6.50662
+    },
+    "visibility": {
+      "p50_ms": 0.661024,
+      "p95_ms": 3.10477,
+      "p99_ms": 5.57546,
+      "max_ms": 13.3847
+    },
+    "association": {
+      "p50_ms": 0.016928,
+      "p95_ms": 0.036384,
+      "p99_ms": 0.316256,
+      "max_ms": 2.4889
+    }
+  },
+  {
+    "round": 2,
+    "variant": "optimized",
+    "backend": "cuda_mapped",
+    "frames": 1000,
+    "samples": 900,
+    "max_points": 11773,
+    "invalid_frames": 20,
+    "valid_measurements": 260,
+    "association_exercised_with_synthetic_trust": true,
+    "metric_accuracy_validated": false,
+    "sensor_to_output_ms": null,
+    "core_working_bytes": 3612800,
+    "cuda_working_bytes": 8372800,
+    "fusion": {
+      "p50_ms": 0.306176,
+      "p95_ms": 2.11011,
+      "p99_ms": 4.32464,
+      "max_ms": 8.43149
+    },
+    "projection": {
+      "p50_ms": 0.138016,
+      "p95_ms": 0.819904,
+      "p99_ms": 2.64656,
+      "max_ms": 6.95888
+    },
+    "visibility": {
+      "p50_ms": 0.142272,
+      "p95_ms": 1.17357,
+      "p99_ms": 2.89654,
+      "max_ms": 8.27213
+    },
+    "association": {
+      "p50_ms": 0.016096,
+      "p95_ms": 0.034688,
+      "p99_ms": 0.272928,
+      "max_ms": 3.60659
+    }
+  }
+]

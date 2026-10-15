@@ -24,5 +24,5 @@ go2_language_grounding:
     device: cuda:0
     reject_absolute_floor: 0.18
     reject_label_floor: 0.45
-    reject_clip_floor: 0.25
+    reject_clip_floor: 0.30
     reject_margin_min: 0.05

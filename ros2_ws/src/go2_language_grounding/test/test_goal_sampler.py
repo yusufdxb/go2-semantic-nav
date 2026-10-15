@@ -116,3 +116,56 @@ def test_sampler_stand_off_override_clamped_to_range():
     assert ps is not None
     r = math.hypot(ps.pose.position.x, ps.pose.position.y)
     assert abs(r - 1.5) < 1e-3  # clamped to max
+
+
+def test_stand_off_is_measured_from_object_surface():
+    """A 1.0 m wide object: the pose sits stand_off + 0.5 m from its centroid."""
+    target = np.array([2.0, 0.0, 0.0], dtype=np.float32)
+    ps = sample_stand_off(
+        target, costmap=None, params=SamplerParams(stand_off_m=0.9, goal_ring_samples=8),
+        map_frame="map", target_half_extent_m=0.5,
+    )
+    d = float(np.hypot(ps.pose.position.x - 2.0, ps.pose.position.y))
+    assert abs(d - 1.4) < 1e-5
+
+
+def test_prefers_the_slot_nearest_the_robot():
+    target = np.array([0.0, 0.0, 0.0], dtype=np.float32)
+    ps = sample_stand_off(
+        target, costmap=None, params=SamplerParams(stand_off_m=1.0, goal_ring_samples=12),
+        prefer_origin_xyz=np.array([-5.0, 0.0, 0.0]), map_frame="map",
+    )
+    assert ps.pose.position.x < -0.9  # on the robot's side, not behind the object
+
+
+def _grid(value: int, size: int = 100, res: float = 0.1) -> "OccupancyGrid":
+    from nav_msgs.msg import OccupancyGrid as _OG
+
+    g = _OG()
+    g.info.resolution = res
+    g.info.width = size
+    g.info.height = size
+    g.info.origin.position.x = -size * res / 2
+    g.info.origin.position.y = -size * res / 2
+    g.info.origin.orientation.w = 1.0
+    g.data = [value] * (size * size)
+    return g
+
+
+def test_unknown_space_is_usable_when_allowed_and_refused_otherwise():
+    target = np.array([0.0, 0.0, 0.0], dtype=np.float32)
+    unknown = _grid(-1)
+    assert sample_stand_off(target, unknown, SamplerParams(allow_unknown=True)) is not None
+    assert sample_stand_off(target, unknown, SamplerParams(allow_unknown=False)) is None
+
+
+def test_known_free_slot_beats_a_nearer_unknown_one():
+    target = np.array([0.0, 0.0, 0.0], dtype=np.float32)
+    grid = _grid(-1)
+    # Mark only the -x side free; the robot is on the +x side.
+    for gy in range(100):
+        for gx in range(0, 45):
+            grid.data[gy * 100 + gx] = 0
+    ps = sample_stand_off(target, grid, SamplerParams(stand_off_m=0.9, goal_ring_samples=12),
+                          prefer_origin_xyz=np.array([3.0, 0.0, 0.0]))
+    assert ps.pose.position.x < 0.0

@@ -27,8 +27,8 @@ The external story, *"real-time semantic 3D mapping + language-guided quadruped 
 ```
 ros2_ws/src/
 ├── go2_semantic_msgs/       # CMake + IDL (msg/srv/action)
-├── go2_open_vocab_detector/ # ament_python; detector lifecycle node
-├── go2_scene_graph/         # ament_python; scene-graph lifecycle node
+├── go2_open_vocab_detector/ # ament_python; detector node
+├── go2_scene_graph/         # ament_python; scene-graph node
 ├── go2_language_grounding/  # ament_python; grounding + action server
 └── go2_semantic_bringup/    # ament_python; launch files, RViz presets
 ```

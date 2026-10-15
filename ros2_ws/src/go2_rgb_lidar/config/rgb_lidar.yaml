@@ -1,0 +1,31 @@
+# Defaults for go2_rgb_lidar on the GO2 (base stack go2_localization relays the
+# LiDAR to /go2/lidar/points on the local clock, deskewed cloud in odom).
+go2_front_camera:
+  ros__parameters:
+    address: 230.1.1.1
+    port: 1720
+    multicast_iface: ""
+    decoder: avdec_h264
+    image_topic: /camera/front/image_raw
+    frame_id: front_camera_optical_frame
+    latency_s: 0.0       # measure in the lab (docs/rgb_lidar_calibration.md)
+    max_rate_hz: 15.0
+    restart_after_s: 3.0
+
+go2_lidar_depth:
+  ros__parameters:
+    image_topic: /camera/front/image_raw
+    cloud_topic: /go2/lidar/points
+    depth_topic: /camera/front/lidar_depth
+    camera_info_topic: /camera/front/camera_info
+    overlay_topic: /camera/front/lidar_overlay
+    fixed_frame: odom
+    accumulate_s: 0.5
+    max_cloud_gap_s: 0.3
+    max_rate_hz: 5.0
+    min_depth_m: 0.2
+    max_depth_m: 8.0
+    max_normalized_radius: 1.3
+    splat_radius_px: 2
+    occlusion_window_px: 21
+    occlusion_margin_m: 0.3

@@ -1,0 +1,235 @@
+{
+  "schema_version": 1,
+  "measurement_date": "2026-10-15",
+  "platform": "Jetson",
+  "scope": "Recorded replay fusion compute only; no metric accuracy or sensor-to-output latency claim.",
+  "baseline_commit": "5fced10",
+  "baseline_fusion_implementation_commit": "a33c366",
+  "optimized_source_sha256": {
+    "ros2_ws/src/go2_fusion_cpp/CMakeLists.txt": "a485cbedb753537d541d55de52cd9b4c4b1c2336f56ebc95c081a3977d023fbb",
+    "ros2_ws/src/go2_fusion_cpp/include/go2_fusion_cpp/core.hpp": "56ddc2b25c5872e9b9b38bf2c6f299b43a47327a9911b0eaa3e5fc2634044695",
+    "ros2_ws/src/go2_fusion_cpp/src/core.cpp": "c91e839e1af93e54b1311671caca44fdd60a225b37a70f6114117bdbf9e68192",
+    "ros2_ws/src/go2_fusion_cpp/src/cuda_visibility.cu": "4233a96518c83313615480dcc280a8aa1a386c7944662e80a0e92e6939f21a16",
+    "ros2_ws/src/go2_fusion_cpp/test/core_test.cpp": "7a5579ea74c24f328151296c056d79a6d5c2710eac5855f6c7026b054825f69f",
+    "ros2_ws/src/go2_fusion_cpp/config/fusion_jetson.yaml": "015e2891fc2d463e4a7cf040573e5462601169f4e5a5f381db55835f24fd573c",
+    "ros2_ws/src/go2_fusion_cpp/test/cuda_visibility_test.cpp": "e1d7897f62f751062994fefd7099384b350d0acf8ea7a5ee3a3437f86c6764b9"
+  },
+  "input_sha256": "ebf4b672f31f01b7405d1ee5e529378881cc87ffb4ab9a9ee2d2f6a64d4386b1",
+  "workload": {
+    "description": "50 frames sampled from the readable diagnostic prefix of an incomplete camera-LiDAR chair recording.",
+    "unique_source_frames": 50,
+    "replays_per_backend_per_round": 20,
+    "warmup_frames_per_replay": 5,
+    "rounds": 3,
+    "frames_per_backend_per_round": 1000,
+    "timed_samples_per_backend_per_round": 900,
+    "comparison_order": "Backend and variant order reversed in round 1 (zero-based).",
+    "camera_geometry": "nominal",
+    "association_trust": "synthetic, association exercise only",
+    "metric_accuracy_validated": false,
+    "sensor_to_output_latency_validated": false,
+    "execution": "nice priority 10 under changing concurrent stack load",
+    "thermal_soak_validated": false,
+    "power_mode_verified": false,
+    "quantile_scope": "Ranges and medians of per-run quantiles; samples were not pooled."
+  },
+  "summary": {
+    "cpu": {
+      "rounds": 3,
+      "frames_per_round": 1000,
+      "timed_samples_per_round": 900,
+      "p95_speedups_by_round": [
+        9.527701949325232,
+        33.48654562079551,
+        9.198537922990601
+      ],
+      "baseline": {
+        "p50_ms": {
+          "min": 12.0188,
+          "median": 15.2548,
+          "max": 15.5501
+        },
+        "p95_ms": {
+          "min": 12.3903,
+          "median": 31.2306,
+          "max": 32.8136
+        },
+        "p99_ms": {
+          "min": 12.6542,
+          "median": 45.4987,
+          "max": 68.7226
+        },
+        "max_ms": {
+          "min": 16.5765,
+          "median": 61.7811,
+          "max": 629.955
+        },
+        "core_working_bytes": 14677120,
+        "cuda_working_bytes": 0,
+        "median_user_s": 11.909339,
+        "median_sys_s": 0.266686,
+        "median_wall_s": 17.67322544000001
+      },
+      "optimized": {
+        "p50_ms": {
+          "min": 0.53248,
+          "median": 0.572064,
+          "max": 0.62016
+        },
+        "p95_ms": {
+          "min": 0.979904,
+          "median": 1.30045,
+          "max": 3.39517
+        },
+        "p99_ms": {
+          "min": 1.1767,
+          "median": 1.51466,
+          "max": 6.63299
+        },
+        "max_ms": {
+          "min": 1.3928,
+          "median": 1.86627,
+          "max": 13.3166
+        },
+        "core_working_bytes": 10990720,
+        "cuda_working_bytes": 0,
+        "median_user_s": 0.6589919999999978,
+        "median_sys_s": 0.039814,
+        "median_wall_s": 0.7484627200000205
+      }
+    },
+    "cuda": {
+      "rounds": 3,
+      "frames_per_round": 1000,
+      "timed_samples_per_round": 900,
+      "p95_speedups_by_round": [
+        2.378603888286987,
+        2.4434689858877583,
+        2.615085308674134
+      ],
+      "baseline": {
+        "p50_ms": {
+          "min": 0.783552,
+          "median": 0.805696,
+          "max": 1.15363
+        },
+        "p95_ms": {
+          "min": 0.952992,
+          "median": 1.26458,
+          "max": 3.21258
+        },
+        "p99_ms": {
+          "min": 1.21712,
+          "median": 2.43443,
+          "max": 5.51082
+        },
+        "max_ms": {
+          "min": 2.01139,
+          "median": 4.37696,
+          "max": 12.1549
+        },
+        "core_working_bytes": 3612800,
+        "cuda_working_bytes": 12859200,
+        "median_user_s": 0.27406400000000275,
+        "median_sys_s": 0.191206,
+        "median_wall_s": 1.1051129920000449
+      },
+      "optimized": {
+        "p50_ms": {
+          "min": 0.28736,
+          "median": 0.301056,
+          "max": 0.310208
+        },
+        "p95_ms": {
+          "min": 0.390016,
+          "median": 0.531648,
+          "max": 1.22848
+        },
+        "p99_ms": {
+          "min": 0.587776,
+          "median": 0.624256,
+          "max": 2.53843
+        },
+        "max_ms": {
+          "min": 1.46195,
+          "median": 2.84893,
+          "max": 6.67754
+        },
+        "core_working_bytes": 3612800,
+        "cuda_working_bytes": 9172800,
+        "median_user_s": 0.23709799999999603,
+        "median_sys_s": 0.18820300000000012,
+        "median_wall_s": 0.5000571840000703
+      }
+    },
+    "cuda_mapped": {
+      "rounds": 3,
+      "frames_per_round": 1000,
+      "timed_samples_per_round": 900,
+      "p95_speedups_by_round": [
+        1.1779100371333382,
+        2.742990210056078,
+        1.7964276743866432
+      ],
+      "baseline": {
+        "p50_ms": {
+          "min": 0.772544,
+          "median": 0.840032,
+          "max": 0.871072
+        },
+        "p95_ms": {
+          "min": 0.923488,
+          "median": 2.96275,
+          "max": 3.79066
+        },
+        "p99_ms": {
+          "min": 1.23766,
+          "median": 3.06499,
+          "max": 6.40211
+        },
+        "max_ms": {
+          "min": 2.83741,
+          "median": 6.44342,
+          "max": 13.5542
+        },
+        "core_working_bytes": 3612800,
+        "cuda_working_bytes": 12059200,
+        "median_user_s": 0.2531010000000009,
+        "median_sys_s": 0.19664800000000016,
+        "median_wall_s": 1.4135671999999886
+      },
+      "optimized": {
+        "p50_ms": {
+          "min": 0.280224,
+          "median": 0.306176,
+          "max": 0.311008
+        },
+        "p95_ms": {
+          "min": 0.336672,
+          "median": 2.11011,
+          "max": 2.51526
+        },
+        "p99_ms": {
+          "min": 0.454208,
+          "median": 2.85882,
+          "max": 4.32464
+        },
+        "max_ms": {
+          "min": 0.599552,
+          "median": 3.60461,
+          "max": 8.43149
+        },
+        "core_working_bytes": 3612800,
+        "cuda_working_bytes": 8372800,
+        "median_user_s": 0.2433619999999994,
+        "median_sys_s": 0.20142499999999997,
+        "median_wall_s": 0.8334462399999438
+      }
+    }
+  },
+  "short_telemetry_observation": {
+    "samples": 63,
+    "max_tj_C": 66.937,
+    "max_board_power_mW": 19384
+  }
+}

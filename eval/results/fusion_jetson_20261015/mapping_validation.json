@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-15",
+  "python_suite": {
+    "passed": 241,
+    "kind": "local",
+    "fusion_adapter_and_launch_checks": 42
+  },
+  "ros_integration": {
+    "local": "pass",
+    "jetson": "pass",
+    "input_kind": "synthetic semantic and fusion messages over localhost DDS",
+    "checks": [
+      "both adapter input orders",
+      "replacement of original detector geometry",
+      "unknown depth and extents cleared",
+      "TF to map",
+      "three observations merge into one object",
+      "scene graph publication",
+      "query service",
+      "JSON snapshots",
+      "expiry during stream silence",
+      "archive marks expired object inactive"
+    ]
+  },
+  "not_proven": [
+    "live detector throughput",
+    "camera-LiDAR extrinsics",
+    "physical object position accuracy",
+    "acquisition clock validity",
+    "sustained mapping under load",
+    "tracking restore after restart"
+  ]
+}

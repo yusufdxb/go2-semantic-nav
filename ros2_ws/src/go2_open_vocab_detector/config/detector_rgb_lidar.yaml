@@ -1,0 +1,55 @@
+# Detector parameters for the RGB-only GO2: depth comes from the LiDAR (go2_rgb_lidar).
+go2_open_vocab_detector:
+  ros__parameters:
+    # Backends: see docs/architecture.md §Model backends for the full list.
+    detector_backend: yolo_world_v2_s
+    segmenter_backend: mobile_sam
+    encoder_backend: openclip_vit_b16
+
+    # Compute
+    device: cuda:0
+    detection_rate_hz: 5.0
+    conf_threshold: 0.25
+    max_objects_per_frame: 30
+
+    # Depth / back-projection
+    min_depth_m: 0.2
+    max_depth_m: 8.0
+    # Sparse LiDAR depth: each return covers a 5x5 splat (go2_rgb_lidar
+    # splat_radius_px 2 = 25 px), so 50 px needs at least two distinct returns
+    # on the object's mask.
+    min_valid_depth_pixels: 50
+
+    # Subscriptions
+    # go2_rgb_lidar: GO2 front camera + LiDAR-projected depth, same header on all three.
+    image_topic: /camera/front/image_raw
+    depth_topic: /camera/front/lidar_depth
+    camera_info_topic: /camera/front/camera_info
+    # Reject unregistered depth. Resizing depth is not geometric alignment.
+    require_aligned_depth: true
+    sync_slop_sec: 0.05
+
+    # Mask post-processing
+    mask_downsample: 1
+
+    # Open-vocabulary prompt list
+    prompts:
+      - chair
+      - sofa
+      - table
+      - desk
+      - window
+      - door
+      - person
+      - refrigerator
+      - television
+      - bed
+      - lamp
+      - potted plant
+      - bookshelf
+      - cup
+      - laptop
+      - backpack
+
+    # Soft lifecycle
+    active: true
