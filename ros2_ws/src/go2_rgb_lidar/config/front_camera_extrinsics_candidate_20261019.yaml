@@ -1,0 +1,11 @@
+# CANDIDATE, NOT A CALIBRATION. Camera optical frame in the LiDAR's own base frame, fitted from eight pole
+# captures (2026-10-15, C1-C8) with scripts/calib/extrinsics_from_poles.py and the measured intrinsics.
+# Fit: leave-one-pole-out <= 0.93 px point-to-mask, restarts agree to 0.02 deg / 1 mm. It did NOT pass its
+# registered held-out bar (docs/preregistration/pole-extrinsics.md), so it stays nominal: true and the depth
+# gate stays closed. Use it only with allow_nominal_calibration:=true, for experiments.
+# Differs from the nominal file by about -3.2 deg roll, +3.6 deg yaw and +11 cm height.
+nominal: true
+parent_frame: base_link
+child_frame: front_camera_optical_frame
+xyz: [0.29810, 0.00121, 0.13871]
+rpy: [-1.626005, -0.00152, -1.507344]

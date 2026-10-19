@@ -149,7 +149,7 @@ up() {
   env_setup
   [ -z "$(ours)" ] || { echo "already running: $(ours | tr '\n' ' ') (run down first)"; return 1; }
   local cfg="$WS/install/go2_rgb_lidar/share/go2_rgb_lidar/config"
-  local intr=${GSN_INTRINSICS:-$cfg/front_camera_intrinsics_nominal.yaml}
+  local intr=${GSN_INTRINSICS:-$cfg/front_camera_intrinsics_measured_20261015.yaml}
   local ext=${GSN_EXTRINSICS:-$cfg/front_camera_extrinsics_nominal.yaml}
   local latency=${GSN_LATENCY_S:-0.0}
   CAM_IFACE=$IFACE

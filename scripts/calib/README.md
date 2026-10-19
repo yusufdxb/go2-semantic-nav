@@ -69,3 +69,27 @@ Synthetic captures only: rendered checkerboards with known K and D, a yaw
 panorama stamped a known lag late, and a ray-cast box scene with a known
 extrinsic. They show the tools recover known answers; they say nothing about
 the real GO2 camera, its LiDAR density, or real-image edge clutter.
+
+## Pole-based extrinsics (when the scene has no clean edges)
+
+`extrinsics_from_poles.py` fits the camera pose in the LiDAR base frame from
+single-pole captures (an orange pole, robot still, one capture per spot; scene
+folders named `scene_<name>`):
+
+```sh
+python3 scripts/calib/extrinsics_from_poles.py --capture <root> --intrinsics intr.yaml \
+    --poles C1:4:0,C2:4:2,... --out ext.yaml --leave-one-out --overlay-dir overlays/
+python3 scripts/calib/extrinsics_from_poles.py --capture <new_root> --intrinsics intr.yaml \
+    --poles ... --evaluate ext.yaml     # score a pose on captures that were not in the fit
+```
+
+`--poles` is `<scene>:<ahead_ft>:<left_ft>` from the tape; the tape only picks
+which LiDAR cluster is the pole. The objective is the distance from projected
+pole returns to the orange mask plus the pole's floor contact. Why it exists:
+on cluttered lab scenes the silhouette-edge score of `extrinsics_from_capture.py`
+and `acceptance_from_capture.py` does not separate a good pose from one that is
+5-8 degrees wrong (11.3 px against 11.8-12.5 px on the 2026-10-15 S1 scene;
+see `docs/preregistration/pole-extrinsics.md`). Pole captures do not have that
+problem. `--evaluate` exits 0 only when every pole is within 2 px of its mask
+and 4 cm at the floor contact.
+

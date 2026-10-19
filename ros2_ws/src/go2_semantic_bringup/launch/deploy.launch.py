@@ -114,7 +114,7 @@ def generate_launch_description() -> LaunchDescription:
     calibration_args = [
         DeclareLaunchArgument(
             "camera_intrinsics_file",
-            default_value=PathJoinSubstitution([rgb_lidar_share, "config", "front_camera_intrinsics_nominal.yaml"]),
+            default_value=PathJoinSubstitution([rgb_lidar_share, "config", "front_camera_intrinsics_measured_20261015.yaml"]),
         ),
         DeclareLaunchArgument(
             "camera_extrinsics_file",

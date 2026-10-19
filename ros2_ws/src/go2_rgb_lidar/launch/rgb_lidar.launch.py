@@ -35,7 +35,7 @@ def generate_launch_description() -> LaunchDescription:
     cfg = os.path.join(share, "config", "rgb_lidar.yaml")
     args = [
         DeclareLaunchArgument("intrinsics_file",
-                              default_value=os.path.join(share, "config", "front_camera_intrinsics_nominal.yaml")),
+                              default_value=os.path.join(share, "config", "front_camera_intrinsics_measured_20261015.yaml")),
         DeclareLaunchArgument("extrinsics_file",
                               default_value=os.path.join(share, "config", "front_camera_extrinsics_nominal.yaml")),
         DeclareLaunchArgument("allow_nominal_calibration", default_value="false"),
