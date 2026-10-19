@@ -8,6 +8,7 @@ from go2_open_vocab_detector.depth_backproject import (
     mask_rle_decode,
     mask_rle_encode,
     masked_depth_median,
+    masked_extent_3d,
     object_centroid_3d,
     rgbd_alignment_error,
 )
@@ -133,3 +134,26 @@ def test_masked_depth_median_requires_min_valid_pixels():
     assert masked_depth_median(depth, mask, min_valid_pixels=2) == pytest.approx(1.6)
     centroid, d, _ = object_centroid_3d(mask, depth, _simple_intrinsics(), min_valid_pixels=3)
     assert np.isnan(d) and np.isnan(centroid).all()
+
+
+def test_masked_extent_ignores_far_wall_leakage():
+    intr = _simple_intrinsics()
+    depth = np.zeros((480, 640), dtype=np.uint16)
+    depth[200:260, 300:360] = 2000  # object, 2 m
+    depth[200:260, 360:440] = 6000  # wall leaked into the mask, 6 m
+    mask = np.zeros((480, 640), dtype=bool)
+    mask[200:260, 300:440] = True
+    dims = masked_extent_3d(mask, depth, intr, depth_m=2.0)
+    # 60 px wide at 2 m: 60 * 2 / 600 = 0.2 m, not the 140 px spread
+    assert dims[0] == pytest.approx(0.2, abs=0.01)
+    assert dims[1] == pytest.approx(0.2, abs=0.01)
+
+
+def test_masked_extent_falls_back_to_bbox_when_few_points():
+    intr = _simple_intrinsics()
+    depth = np.zeros((480, 640), dtype=np.uint16)
+    mask = np.zeros((480, 640), dtype=bool)
+    mask[100:110, 100:120] = True  # no valid depth at all
+    dims = masked_extent_3d(mask, depth, intr, depth_m=3.0)
+    assert dims[0] == pytest.approx(20 * 3.0 / 600.0)
+    assert dims[1] == pytest.approx(10 * 3.0 / 600.0)

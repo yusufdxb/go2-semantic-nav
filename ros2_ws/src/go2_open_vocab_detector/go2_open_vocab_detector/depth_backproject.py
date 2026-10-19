@@ -140,17 +140,57 @@ def object_centroid_3d(
     v_mean = float(np.mean(ys))
     centroid = backproject_pixel(u_mean, v_mean, depth_m, intr)
 
-    # Pixel indices are pixel centres; a mask covering columns [u_min, u_max]
-    # spans (u_max - u_min + 1) pixels, from edge u_min - 0.5 to edge u_max + 0.5.
-    u_min, u_max = float(np.min(xs)) - 0.5, float(np.max(xs)) + 0.5
-    v_min, v_max = float(np.min(ys)) - 0.5, float(np.max(ys)) + 0.5
-    p_min = backproject_pixel(u_min, v_min, depth_m, intr)
-    p_max = backproject_pixel(u_max, v_max, depth_m, intr)
-    dims_xy = np.abs(p_max - p_min)
-    # Z extent is not observable from a single mask at one depth; approximate as dy.
-    dims_xyz = np.array([dims_xy[0], dims_xy[1], dims_xy[1]], dtype=np.float32)
-
+    dims_xyz = masked_extent_3d(
+        mask, depth_image_mm, intr, depth_m, min_depth_m=min_depth_m, max_depth_m=max_depth_m
+    )
     return centroid.astype(np.float32), float(depth_m), dims_xyz
+
+
+def masked_extent_3d(
+    mask: np.ndarray,
+    depth_image_mm: np.ndarray,
+    intr: CameraIntrinsics,
+    depth_m: float,
+    min_depth_m: float = 0.2,
+    max_depth_m: float = 8.0,
+    band_rel: float = 0.15,
+    band_abs_m: float = 0.35,
+    min_points: int = 8,
+) -> np.ndarray:
+    """Camera-frame extents (dx, dy, dy) in meters from depth-consistent mask pixels.
+
+    Only valid depth pixels within ``max(band_abs_m, band_rel * depth_m)`` of the median depth are
+    used, so mask leakage onto a far wall (or a near foreground return) does not inflate the size:
+    each kept pixel is back-projected at its own depth and the extent is the min/max spread plus half
+    a pixel at each edge. dz repeats dy (vertical height for a level camera); depth relief is not a
+    height. A sparse LiDAR depth image can only underestimate (extent spans the returns that hit
+    the object). With fewer than ``min_points`` consistent pixels it falls back to the 2D mask bbox
+    at the median depth.
+    """
+    mask = mask.astype(bool)
+    d_m = depth_image_mm.astype(np.float32) / 1000.0
+    band = max(band_abs_m, band_rel * depth_m)
+    keep = (
+        mask
+        & (depth_image_mm > int(min_depth_m * 1000))
+        & (depth_image_mm < int(max_depth_m * 1000))
+        & (np.abs(d_m - depth_m) <= band)
+    )
+    vs, us = np.nonzero(keep)
+    if us.size >= min_points:
+        z = d_m[vs, us]
+        lo = [backproject_pixel(float(u) - 0.5, float(v) - 0.5, float(zz), intr) for u, v, zz in zip(us, vs, z)]
+        hi = [backproject_pixel(float(u) + 0.5, float(v) + 0.5, float(zz), intr) for u, v, zz in zip(us, vs, z)]
+        lo = np.min(np.stack(lo), axis=0)
+        hi = np.max(np.stack(hi), axis=0)
+        dx, dy = float(abs(hi[0] - lo[0])), float(abs(hi[1] - lo[1]))
+        return np.array([dx, dy, dy], dtype=np.float32)
+
+    ys, xs = np.nonzero(mask)
+    p_min = backproject_pixel(float(xs.min()) - 0.5, float(ys.min()) - 0.5, depth_m, intr)
+    p_max = backproject_pixel(float(xs.max()) + 0.5, float(ys.max()) + 0.5, depth_m, intr)
+    dims_xy = np.abs(p_max - p_min)
+    return np.array([dims_xy[0], dims_xy[1], dims_xy[1]], dtype=np.float32)
 
 
 def mask_rle_encode(mask: np.ndarray) -> list[int]:
