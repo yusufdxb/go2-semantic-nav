@@ -43,19 +43,35 @@ class CameraIntrinsics:
     cy: float
     width: int
     height: int
+    # plumb_bob (k1, k2, p1, p2, k3) of the raw image; empty means a pinhole (undistorted) image
+    distortion: tuple[float, ...] = ()
 
     @classmethod
-    def from_camera_info_k(cls, k: list[float], width: int, height: int) -> "CameraIntrinsics":
+    def from_camera_info_k(
+        cls, k: list[float], width: int, height: int, d: list[float] | None = None
+    ) -> "CameraIntrinsics":
         # k is row-major [fx, 0, cx, 0, fy, cy, 0, 0, 1]
-        return cls(fx=k[0], fy=k[4], cx=k[2], cy=k[5], width=width, height=height)
+        dist = tuple(float(v) for v in d[:5]) if d is not None and len(d) >= 5 and any(d[:5]) else ()
+        return cls(fx=k[0], fy=k[4], cx=k[2], cy=k[5], width=width, height=height, distortion=dist)
 
 
 def backproject_pixel(u: float, v: float, depth_m: float, intr: CameraIntrinsics) -> np.ndarray:
-    """Back-project a single pixel + metric depth to a 3D point in the camera optical frame."""
-    x = (u - intr.cx) * depth_m / intr.fx
-    y = (v - intr.cy) * depth_m / intr.fy
-    z = depth_m
-    return np.array([x, y, z], dtype=np.float32)
+    """Back-project a single raw-image pixel + metric depth to a 3D point in the camera optical frame.
+
+    ``depth_m`` is the optical-axis depth. Lens distortion (plumb_bob) is undone by fixed-point iteration, the
+    same scheme as OpenCV's undistortPoints, so this inverts ``go2_rgb_lidar.projection.project_points``.
+    """
+    xd = (u - intr.cx) / intr.fx
+    yd = (v - intr.cy) / intr.fy
+    x, y = xd, yd
+    if intr.distortion:
+        k1, k2, p1, p2, k3 = intr.distortion
+        for _ in range(25):
+            r2 = x * x + y * y
+            radial = 1.0 + k1 * r2 + k2 * r2 * r2 + k3 * r2 * r2 * r2
+            x = (xd - (2.0 * p1 * x * y + p2 * (r2 + 2.0 * x * x))) / radial
+            y = (yd - (p1 * (r2 + 2.0 * y * y) + 2.0 * p2 * x * y)) / radial
+    return np.array([x * depth_m, y * depth_m, depth_m], dtype=np.float32)
 
 
 def masked_depth_median(

@@ -157,3 +157,32 @@ def test_drop_occluded_keeps_foreground_and_far_background():
     assert out[10, 10] == 2000 and out[12, 12] == 2200 and out[10, 30] == 6000
     assert out[10, 14] == 0
     assert drop_occluded(depth, window_px=1, margin_m=0.3) is depth
+
+
+MEASURED_D = (-0.4132896853773888, 0.1955870347708433, -0.008658492832565989, 0.001970692700261848,
+              -0.05371643911979652)
+
+
+def test_detector_backprojection_undoes_lens_distortion():
+    """The depth node projects through plumb_bob distortion, so the detector must undo it."""
+    from go2_open_vocab_detector.depth_backproject import backproject_pixel
+
+    cam = camera_model_from_dict(
+        {
+            "image_width": 1280,
+            "image_height": 720,
+            "camera_matrix": {"rows": 3, "cols": 3, "data": [818.46, 0, 616.34, 0, 820.39, 393.44, 0, 0, 1]},
+            "distortion_model": "plumb_bob",
+            "distortion_coefficients": {"rows": 1, "cols": 5, "data": list(MEASURED_D)},
+        }
+    )
+    intr = CameraIntrinsics.from_camera_info_k(
+        [818.46, 0, 616.34, 0, 820.39, 393.44, 0, 0, 1], width=1280, height=720, d=list(MEASURED_D)
+    )
+    for p in ([1.6, 0.4, 3.0], [-1.5, -0.6, 3.0], [0.2, 0.1, 1.0]):
+        u, v, z = project_points(np.array([p]), cam, 0.2, 8.0, 1.3)
+        assert u.size == 1, p
+        np.testing.assert_allclose(backproject_pixel(float(u[0]), float(v[0]), float(z[0]), intr), p, atol=0.005)
+    # a pinhole camera_info (no D) keeps the old behaviour
+    flat = CameraIntrinsics.from_camera_info_k([500, 0, 320, 0, 500, 240, 0, 0, 1], width=640, height=480)
+    np.testing.assert_allclose(backproject_pixel(420.0, 240.0, 2.0, flat), [0.4, 0.0, 2.0], atol=1e-6)

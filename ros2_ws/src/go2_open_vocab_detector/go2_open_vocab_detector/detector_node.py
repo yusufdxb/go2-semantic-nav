@@ -213,12 +213,13 @@ class DetectorNode(Node):
 
         if self._intr is None or self._intr.width != info_msg.width or self._intr.height != info_msg.height:
             self._intr = CameraIntrinsics.from_camera_info_k(
-                list(info_msg.k), width=info_msg.width, height=info_msg.height
+                list(info_msg.k), width=info_msg.width, height=info_msg.height, d=list(info_msg.d)
             )
             self.get_logger().info(
                 f"camera intrinsics: fx={self._intr.fx:.1f} fy={self._intr.fy:.1f} "
                 f"cx={self._intr.cx:.1f} cy={self._intr.cy:.1f} "
-                f"{self._intr.width}x{self._intr.height}"
+                f"{self._intr.width}x{self._intr.height} "
+                f"{'distortion k1=%.3f' % self._intr.distortion[0] if self._intr.distortion else 'no distortion'}"
             )
 
         color_h, color_w = color_bgr.shape[:2]
