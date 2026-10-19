@@ -41,7 +41,13 @@ The overlay is still published in all of these cases: it is the calibration tool
 | `front_camera_node` decoding an RTP H.264 stream, recovering after the stream stops and returns at a new resolution | loopback test (unicast; the multicast join is not tested off the robot) |
 | real GO2 frame -> `lidar_depth_node` -> real detector -> correct 3D depth and lateral position | `scripts/smoke_rgb_lidar.py`, with a SYNTHETIC LiDAR scene |
 | `deploy.launch.py` brings the nodes up with the RGB-LiDAR topics | dry run on the desktop, no robot |
-| the GO2 camera stream format (1280x720, 15 fps), the multicast join, real LiDAR density in the camera view, calibration accuracy, capture latency | **NOT verified: needs the robot** |
+| the GO2 camera stream format (1280x720, 15 fps), the multicast join, camera latency and DDS delivery on the robot | verified 2026-10-02 (`lab_run.md`): 14.3 fps, 17.6 ms p50 |
+| camera intrinsics | **measured 2026-10-15**: 301 views, RMS 0.430 px; fx 818.5, fy 820.4, cx 616.3, cy 393.4, k1 -0.413 (`front_camera_intrinsics_measured_20261015.yaml`, now the default). The nominal file (fx 537) was 34 % low. |
+| camera-to-LiDAR extrinsics | **candidate only** (`front_camera_extrinsics_candidate_20261019.yaml`, `nominal: true`): pole fit, leave-one-out 0.4-0.9 px, but its registered held-out bar was not met ([`preregistration/pole-extrinsics.md`](preregistration/pole-extrinsics.md)) |
+| LiDAR mount, in the plane | measured against tape 2026-10-15: yaw -2.82 deg, (-0.136, +0.039) m, leave-one-out 0.013-0.077 m. Not applied; the pole fit absorbs it |
+| capture latency (`latency_s`) | **NOT measured** |
+| object position accuracy (tape-measured chair) | **NOT measured** |
+| the silhouette-edge acceptance check | **no discriminating power** on the 2026-10-15 lab scenes (11.3 px fitted vs 11.8-12.5 px for a pose 5-8 deg off); use `extrinsics_from_poles.py --evaluate` |
 
 ## Lab procedure
 
@@ -87,6 +93,12 @@ rectification, plumb_bob is not enough for this lens; lower
 `max_normalized_radius` so edge pixels are not used.
 
 ### 3. Extrinsics (LiDAR overlay)
+
+If the scene has no clean vertical and horizontal edges, use the pole method
+instead: place one orange pole at several tape-measured spots (about 4 to 12 ft
+ahead, left and right, standing and lying), capture a still segment at each, and
+run `scripts/calib/extrinsics_from_poles.py` ([`scripts/calib/README.md`](../scripts/calib/README.md)).
+The steps below are the manual fallback.
 
 Measure the camera's position from `base_link` with a tape and enter it in a
 copy of `config/front_camera_extrinsics_nominal.yaml`. Then face the robot at

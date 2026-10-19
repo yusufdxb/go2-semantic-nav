@@ -25,8 +25,9 @@ Live 3DGS optimization with densification does not hit near-real-time on Jetson 
 
 - **Target hardware:** NVIDIA Jetson Orin NX 16 GB on Unitree GO2, plus Blackwell consumer GPU dev workstation.
 - **Target latency budget:** sensor to `/goal_pose` under 100 ms on Jetson at 25 W (dev-workstation pipeline runs at 68 ms total on the Blackwell consumer GPU; Jetson on-robot eval pending).
-- **Phase:** object-centric semantic mapping, RGB-LiDAR input support and bounded C++/CUDA fusion implemented. An optional adapter connects validated fusion positions to the mapper; recorded-input fusion and synthetic ROS integration are tested on Jetson.
-- **Eval state:** measured compute results in [`RESULTS.md`](RESULTS.md), including the [Jetson fusion comparison](RESULTS.md#c--cuda-fusion-compute-on-jetson-2026-10-15). Full camera-LiDAR alignment, metric position accuracy, sustained detector-plus-fusion operation and real semantic navigation remain unvalidated.
+- **Phase:** object-centric semantic mapping, RGB-LiDAR input support and bounded C++/CUDA fusion implemented. An optional adapter connects validated fusion positions to the mapper; recorded-input fusion and synthetic ROS integration are tested on Jetson. Real GO2 camera and LiDAR data have been recorded and replayed offline (2026-10-13); nothing has run live end to end.
+- **Calibration:** front-camera **intrinsics are measured** (2026-10-15, RMS 0.430 px, now the default). **Extrinsics are not**: a pole-based fit exists as a candidate but missed its pre-registered held-out bar, so the depth gate stays closed. See [calibration state](RESULTS.md#rgb-lidar-calibration-state-and-real-robot-evidence-2026-10-13-to-2026-10-19).
+- **Eval state:** measured compute results in [`RESULTS.md`](RESULTS.md), including the [Jetson fusion comparison](RESULTS.md#c--cuda-fusion-compute-on-jetson-2026-10-15). Metric position accuracy, latency, sustained detector-plus-fusion operation and real semantic navigation remain unvalidated.
 
 ```mermaid
 flowchart TD
@@ -65,7 +66,10 @@ Three paired Jetson replay rounds under changing concurrent load measured a
 2.38-2.62x CUDA P95 speedup and a 9.20-33.49x CPU P95 speedup after sparse
 visibility optimization, with 3.69 MB less working storage per backend.
 The workload repeats 50 recorded frames; these results measure fusion compute
-and numerical parity, not detector throughput or calibrated localization.
+and numerical parity, not detector throughput or calibrated localization. The
+replay used the nominal intrinsics (fx 537; the measured value is 818), which
+does not change the timing comparison but means its object positions are not
+physical.
 See [measurements and reproducibility](RESULTS.md#c--cuda-fusion-compute-on-jetson-2026-10-15).
 
 ### What each package actually does
@@ -214,6 +218,8 @@ ros2 action send_goal /semantic/ground_and_navigate \
 
 | Doc | What it covers |
 |---|---|
+| [`docs/fusion_engine.md`](docs/fusion_engine.md) | C++/CUDA fusion core, adapter, benchmarks and reproduction commands |
+| [`docs/preregistration/`](docs/preregistration/) | Claims, arms, bars and kill criteria written before the data: NVDEC clock A/B (not run) and pole-based extrinsics (run, bar not met) |
 | [`docs/fusion_semantic_mapping.md`](docs/fusion_semantic_mapping.md) | Validated fusion-to-mapper interface, launch options and limits |
 | [`docs/architecture.md`](docs/architecture.md) | Component design, data flow, interface contracts, known constraints |
 | [`docs/system_diagram.md`](docs/system_diagram.md) | Full ROS graph, backend plug points, goal-generation flow, topic + QoS contract |
@@ -235,7 +241,11 @@ ros2 action send_goal /semantic/ground_and_navigate \
 What is done:
 - Eight ROS 2 packages are implemented. The optional fusion-to-mapper path passes synthetic ROS tests locally and on Jetson, including TF, association, graph publication, query, snapshots and stale-object expiry.
 - RGB-only GO2 support (`go2_rgb_lidar`): a real GO2 camera frame with a synthetic LiDAR scene runs through the real detector with correct 3D depth (`scripts/smoke_rgb_lidar.py`).
-- On the robot, standing still (2026-10-02, [`docs/lab_run.md`](docs/lab_run.md)): camera 14.3 fps with arrival->publish p50 about 18 ms (p95 19.5 ms before the detector was added, marginal around 25 ms with it), LiDAR depth 4.5 Hz, slam_toolbox map saved to disk, detector + scene graph live on the Orin NX GPU writing the object map to JSON. The camera has not been calibrated, so depth and object positions use nominal values.
+- On the robot, standing still (2026-10-02, [`docs/lab_run.md`](docs/lab_run.md)): camera 14.3 fps with arrival->publish p50 about 18 ms (p95 19.5 ms before the detector was added, marginal around 25 ms with it), LiDAR depth 4.5 Hz, slam_toolbox map saved to disk, detector + scene graph live on the Orin NX GPU writing the object map to JSON. That run used nominal calibration.
+- First simultaneous camera and LiDAR bag on the GO2 (2026-10-13, 78 s, driven to a chair): YOLO-World found the chair in 24 of 24 sampled frames and the repo scene graph kept a persistent chair object when the bag was replayed offline. Nominal calibration, no tape measurement, a false television and duplicate chairs in the graph: a plumbing check, not a position result ([`RESULTS.md`](RESULTS.md#first-simultaneous-camera-and-lidar-bag-2026-10-13-nominal-calibration)).
+- Front-camera intrinsics measured on the robot (2026-10-15): 301 views, RMS 0.430 px, focal length 818 px against the nominal 537 px. Committed and made the default.
+- Detector back-projection now undoes lens distortion. It was pinhole-only, which with the measured lens put an object 1.5 m off-axis at 3 m depth about 0.17 m off (unit test against the depth node's own projection; not yet exercised on the robot).
+- Camera-LiDAR extrinsics: a new pole-based fit ([`scripts/calib/extrinsics_from_poles.py`](scripts/calib/README.md), pre-registered in [`docs/preregistration/pole-extrinsics.md`](docs/preregistration/pole-extrinsics.md)) is stable and sub-pixel on held-out poles and on two never-fitted cup scenes, but missed its registered held-out bar. It ships as a `nominal: true` candidate. The older edge-alignment acceptance check was shown unable to separate a good pose from one 5-8 degrees wrong on these scenes.
 - 9 detector backends, 4 segmenters, 3 encoder families pluggable through `factory.py` (see [`CHANGELOG.md`](CHANGELOG.md)).
 - Two-layer grounding rejection (absolute floor + label/clip floor) replaces the v1 single-threshold gate after the synthetic-scene false-positive failure mode (documented in [`RESULTS.md`](RESULTS.md)).
 - Latency profiler + thermal benchmark + rosbag-backed eval harness in place.
@@ -243,7 +253,8 @@ What is done:
 - CI: ruff lint + msgs build + pure-Python unit smoke.
 
 What is **not** done:
-- Complete GO2 front camera calibration. Measured intrinsics and a horizontal LiDAR correction exist; full camera-to-LiDAR alignment and acquisition timing still require validation. Trust gates remain required, and live object positions are not certified.
+- A validated camera-to-LiDAR extrinsic and acquisition latency. Intrinsics are measured; the extrinsic is a candidate; latency has no capture on record. One short on-robot session (fresh poles plus a tape-measured chair, `extrinsics_from_poles.py --evaluate`) is the decisive test. Trust gates stay closed and live object positions are not certified until then.
+- Any metric position accuracy: no estimate has been compared with a tape-measured object.
 - Robot-side eval on Jetson Orin NX (the ≥1000-frame 25 W and 15 W rows in [`RESULTS.md`](RESULTS.md) are still `<...>` placeholders; only a first 10-cycle measurement exists).
 - Real indoor rosbag suite. Current grounding numbers are on a synthetic single-image scene (`bus.jpg`), useful only as a sanity / honesty signal.
 - Navigation success rate (SR) and SPL: harness exists, numbers not yet captured.
@@ -254,6 +265,8 @@ The safe next milestone is a motors-disabled RGB-D and dry-run grounding session
 
 ## Known limitations
 
+- **Anything computed with the nominal intrinsics is not physical.** The nominal file assumed fx = 537 px; the measured value is 818 px. That includes the 2026-10-13 chair estimate and the object positions in the fusion replay. Timing results are unaffected.
+- **The edge-alignment acceptance check has no power on cluttered scenes** (`scripts/calib/acceptance_from_capture.py`): 11.3 px for the fitted pose, 11.8-12.5 px for 5-8 degree errors. Use the pole or object-mask check.
 - **Detector is slow on the robot.** First on-robot numbers: about 1.1 s per detection cycle on the Orin NX (MobileSAM 573 ms + OpenCLIP 511 ms with 11 objects), so near 1 Hz against the dev-workstation 68 ms. NanoSAM / MobileCLIP or TensorRT are the planned fixes; none is measured on the robot yet.
 - **Camera decode is the largest latency stage.** Of the camera's ~18 ms arrival->publish (p50), roughly 10 ms is the hardware H.264 decoder, whose clock sat at its floor during the run; colour conversion adds ~6 ms ([`docs/lab_run.md`](docs/lab_run.md)).
 - **Ultralytics YOLO-World** auto-installs OpenAI's `clip` package on first inference and can hang for minutes. Pre-install manually in production deploys ([`docs/troubleshooting.md`](docs/troubleshooting.md)).

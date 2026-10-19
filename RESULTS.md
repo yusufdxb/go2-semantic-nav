@@ -117,6 +117,53 @@ and [parity and test summaries](eval/results/fusion_jetson_20261015/validation.j
 The source recording is not distributed with these results. Implementation and
 reproduction commands are in [the fusion engine guide](docs/fusion_engine.md).
 
+## RGB-LiDAR calibration state and real-robot evidence (2026-10-13 to 2026-10-19)
+
+All rows are from the real GO2 front camera and LiDAR unless stated. Nothing here is a live, closed-loop run.
+
+| Quantity | State | Evidence |
+|---|---|---|
+| Intrinsics | **measured, PASS** | 301 checkerboard views, RMS 0.430 px (2026-10-15). fx 818.5, fy 820.4, cx 616.3, cy 393.4, k1 -0.413. The nominal file said fx = fy = 537, so every position computed with it is wrong. Now the default: `front_camera_intrinsics_measured_20261015.yaml`. |
+| LiDAR to tape, 2-D | measured, **not applied anywhere** | 8 pole captures: yaw -2.82 deg, translation (-0.136, +0.039) m, leave-one-out 0.013-0.077 m. One operator, one tape. |
+| Camera extrinsics | **candidate only** | Pole fit (below). Not a calibration: its registered held-out bar was not met, so the file stays `nominal: true` and the depth gate stays closed. |
+| Latency | not measured | No latency capture is on record. Image-to-cloud receipt offset was 16 ms median on the 10-13 bag; that is not exposure-to-output latency. |
+| Object position accuracy | **not measured** | No tape-measured chair or object has been compared with an estimate. |
+
+### Camera-LiDAR extrinsics from pole captures
+
+Pre-registered before the fit ran: [`docs/preregistration/pole-extrinsics.md`](docs/preregistration/pole-extrinsics.md),
+which also lists every deviation. Tool: `scripts/calib/extrinsics_from_poles.py`.
+Data: eight single-pole captures (C1-C8, 1.2-3.7 m, six standing, two lying) from 2026-10-15,
+the same captures behind the 2-D LiDAR fit.
+
+| Check | Result | Bar | Met |
+|---|---|---|---|
+| Restart agreement | 0.02 deg, 1 mm | 0.5 deg, 1 cm | yes |
+| Leave-one-pole-out, point to mask | 0.36-0.93 px | <= 4 px | yes |
+| Leave-one-pole-out, floor contact | 1.2-13.3 px (0.6-2.4 cm) | <= 8 px as registered; 4 cm after the deviation | **no** as registered (C2 10.6 px, C3 13.3 px); yes in metres |
+| Held-out S1-S5 acceptance (edge alignment) | 11.3-12.1 px on all five | <= 2.0 px | **no** |
+| Held-out S1-S5 acceptance (object range) | +0.18 to +0.23 m on S1, S2, S3, S5; S4 window artifact | <= 0.15 m | **no** |
+
+The pose differs from the nominal file by about -3.2 deg roll, +3.6 deg yaw and +11 cm height.
+
+Two findings change how the failures read:
+
+- **The edge-alignment check cannot discriminate in these scenes.** On S1 it is 11.3 px for the fitted pose and 11.8-12.5 px for the same pose rotated by 5 deg (yaw, pitch or roll) or 8 deg (yaw). Its failures, including the 10-15 desk failures, do not show the calibration is bad.
+- **Post-hoc, not registered:** on the orange cup stacks of S3 (1.1 m, robot lying) and S4 (2.5 m), neither in the fit, LiDAR returns on the cup land 0.30 and 0.46 px from the cup mask with the fitted pose and 22.8 and 31.2 px with the nominal pose. S5 gave only 41 cluster returns and is inconclusive. The range excess of +0.18-0.23 m is unexplained: the tape for S1-S5 may mark the object centre rather than its face.
+
+Decisive next test: fresh poles plus a tape-measured chair on the robot, scored with `extrinsics_from_poles.py --evaluate`
+(every pole <= 2 px and <= 4 cm; chair range within 0.15 m of tape to its visible surface).
+
+### First simultaneous camera and LiDAR bag (2026-10-13, nominal calibration)
+
+A 78 s bag (4.4 GB, camera, camera_info, LiDAR depth, `/go2/lidar/points`, `/utlidar/*`, TF, odom) was recorded
+while the GO2 was driven to a chair and back, then replayed offline through the repo detector and scene graph
+in an isolated ROS domain. YOLO-World found the chair in 24 of 24 sampled frames. Two 3D estimates agreed within
+about 0.15 m of each other. The scene graph held a persistent `chair` object, but also a false `television`, several
+duplicate chair objects, and a chair of 1.07 x 1.52 m. **Superseded as a position result:** it used the nominal
+intrinsics, so the 3D positions are not valid, and no tape measurement exists. The 4.4 GB bag is intact on the
+robot computer; a copy to the workstation was in progress on 2026-10-19 and is not hash-verified.
+
 ## Sustained throughput at Jetson 25 W
 
 Post-thermal-soak (5 min), over 10-min continuous runs.
