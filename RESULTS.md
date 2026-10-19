@@ -161,8 +161,31 @@ while the GO2 was driven to a chair and back, then replayed offline through the 
 in an isolated ROS domain. YOLO-World found the chair in 24 of 24 sampled frames. Two 3D estimates agreed within
 about 0.15 m of each other. The scene graph held a persistent `chair` object, but also a false `television`, several
 duplicate chair objects, and a chair of 1.07 x 1.52 m. **Superseded as a position result:** it used the nominal
-intrinsics, so the 3D positions are not valid, and no tape measurement exists. The 4.4 GB bag is intact on the
-robot computer; a copy to the workstation was in progress on 2026-10-19 and is not hash-verified.
+intrinsics, so the 3D positions are not valid, and no tape measurement exists.
+
+#### Re-replay of the same bag, measured intrinsics (2026-10-19, desk, no robot)
+
+The bag was copied to the workstation (sha256 `4010705a2b5c...b7b8be`, matches the robot, SQLite integrity ok, 27,777
+messages) and replayed twice through `lidar_depth_node`, the detector and the scene graph at 0.5x speed (recorded
+depth, camera_info and static TF excluded; scene graph in the `odom` frame; one run each, same code at the same
+commit). Only the extrinsics differ.
+
+| | candidate extrinsics | nominal extrinsics |
+|---|---|---|
+| Detection messages | 255 | 262 |
+| Scene-graph objects | 22 | 31 |
+| Chair / television objects | 5 / 15 | 10 / 19 |
+| Main chair: observations, depth, size | 217, 2.06 m, 0.68 x 0.83 m | 127, 2.10 m, 0.67 x 0.85 m |
+
+- Valid LiDAR depth pixels per frame are the same for both (median about 56,500 vs 57,400, no empty frames), so the
+  difference is in where returns land, not coverage.
+- The 1.07 x 1.52 m chair is gone: the detector now sizes an object from depth-consistent mask pixels.
+- The candidate consolidates the main chair better (217 vs 127 observations, 5 vs 10 chair objects) but is far from
+  one chair, one object. Fifteen television objects remain, most under 0.3 m; a television appears 0.17 m from the
+  main chair. The false-television and duplicate-chair problems are NOT fixed.
+- No tape measurement, no run-to-run variance (one run each). A first candidate run was discarded: its detector
+  stopped producing detections after about 23 s while another process held the GPU; cause not confirmed. This is a
+  replay of recorded data, not a position-accuracy result and not an on-robot result.
 
 ## Sustained throughput at Jetson 25 W
 
