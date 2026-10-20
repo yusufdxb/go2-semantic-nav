@@ -65,10 +65,17 @@ def parse_taped(items: list[str]) -> list[dict]:
     return out
 
 
+def segment_dir(out: str, segment: str, name: str = "") -> str:
+    """<out>/<segment>[_<name>]; a named scene is how several placements share one run."""
+    return os.path.join(os.path.expanduser(out), f"{segment}_{name}" if name else segment)
+
+
 class Recorder:
     def __init__(self, node, a) -> None:
         self.a = a
-        self.dir = os.path.join(os.path.expanduser(a.out), a.segment)
+        self.dir = segment_dir(a.out, a.segment, a.name)
+        if os.path.exists(os.path.join(self.dir, "frames.csv")):
+            raise SystemExit(f"[capture] {self.dir} already holds a capture; pick another --name (nothing overwritten)")
         os.makedirs(os.path.join(self.dir, "frames"), exist_ok=True)
         os.makedirs(os.path.join(self.dir, "clouds"), exist_ok=True)
         self.frames_csv = open(os.path.join(self.dir, "frames.csv"), "w")
@@ -194,6 +201,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", required=True)
     ap.add_argument("--segment", choices=["checkerboard", "scene", "yaw"], required=True)
+    ap.add_argument("--name", default="", help="suffix for the folder, e.g. P3 -> scene_P3")
     ap.add_argument("--seconds", type=float, required=True)
     ap.add_argument("--intrinsics", required=True)
     ap.add_argument("--extrinsics", required=True)

@@ -98,3 +98,10 @@ def test_bad_image_is_skipped_not_fatal():
         rec._bgr(msg)
     assert rec.parse_taped(["chair:1.5:0", "box:2:-0.5:0.3"]) == [
         {"label": "chair", "x_m": 1.5, "y_m": 0.0}, {"label": "box", "x_m": 2.0, "y_m": -0.5, "z_m": 0.3}]
+
+
+def test_named_scene_gets_its_own_folder():
+    from capture_recorder import segment_dir
+
+    assert segment_dir("/r", "scene") == "/r/scene"
+    assert segment_dir("/r", "scene", "P3") == "/r/scene_P3"

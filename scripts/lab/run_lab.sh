@@ -202,7 +202,11 @@ case "$cmd" in
   up) step "up"; lab up "${1:-nvv4l2}" ;;
   probe) step "probe"; lab probe "${1:-15}" ;;
   checkerboard) step "checkerboard"; lab capture checkerboard 120 --image-rate 3 --no-clouds ;;
-  scene) step "scene"; lab capture scene 15 --image-rate 2 --taped "$@" ;;
+  scene)  # scene [NAME] label:x:y ... ; NAME (no colon) writes scene_NAME so placements do not overwrite each other
+    step "scene"
+    nm=()
+    case "${1:-}" in ""|*:*) ;; *) nm=(--name "$1"); shift ;; esac
+    lab capture scene 15 --image-rate 2 "${nm[@]}" --taped "$@" ;;
   yaw) step "yaw"; lab capture yaw 30 --no-clouds ;;
   down) step "down"; lab down ;;
   status) lab status ;;
