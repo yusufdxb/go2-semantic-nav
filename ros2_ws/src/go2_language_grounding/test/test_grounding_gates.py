@@ -22,7 +22,7 @@ def _gate(
     candidates: list[Candidate],
     absolute_floor: float = 0.15,
     label_floor: float = 0.40,
-    clip_floor: float = 0.22,
+    clip_floor: float = 0.30,
     margin_min: float = 0.0,
 ) -> tuple[bool, str]:
     """Port of GroundingNode._execute_action's rejection logic, pure-Python.
@@ -50,7 +50,7 @@ def test_v1_behavior_single_threshold_accepts_noise():
     # v1 gate: just `total >= 0.15`
     guitar_vs_person = Candidate(score=0.179, score_clip=0.18, score_label=0.03)
     assert guitar_vs_person.score >= 0.15  # v1 accepts
-    # But with v2 gates (label_floor=0.40, clip_floor=0.22), both floors fail
+    # With the fail-closed gates (label_floor=0.40, clip_floor=0.30), both fail.
     ok, reason = _gate([guitar_vs_person])
     assert not ok
     assert "weak on both" in reason
@@ -121,11 +121,9 @@ def test_label_floor_increase_tightens_rejection():
     assert "weak on both" in reason
 
 
-def test_clip_floor_tightening_catches_the_dog_case():
-    """The remaining honesty failure ('the dog' → person with clip~0.23) — bumping clip_floor catches it."""
+def test_default_clip_floor_catches_the_dog_case():
+    """The default gate rejects the observed 'the dog' to person mismatch."""
     dog_vs_person = Candidate(score=0.22, score_clip=0.23, score_label=0.03)
-    ok_default, _ = _gate([dog_vs_person])
-    assert ok_default  # clip 0.23 > default clip_floor 0.22
-    ok_strict, reason = _gate([dog_vs_person], clip_floor=0.30)
-    assert not ok_strict
+    ok, reason = _gate([dog_vs_person])
+    assert not ok
     assert "weak on both" in reason

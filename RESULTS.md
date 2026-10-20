@@ -12,7 +12,8 @@ Evaluation numbers for go2-semantic-nav. **Any claim in this file must be measur
 
 ## Latency (per stage, measured within detector node)
 
-All numbers are **p50 / p95** over ≥1000 frames post 100-frame warmup.
+Numbers in the following table are **p50 / p95**. Sample counts and warmup
+are stated with each measurement; later fusion benchmarks use a separate protocol.
 
 | Config | Platform | Detector ms | Segmenter ms | Encoder ms | Backproject ms | Total ms |
 |---|---|---|---|---|---|---|
@@ -34,6 +35,157 @@ python3 scripts/latency_profiler.py --frames 100 --warmup-frames 20 \
     --timeout-s 120 --out eval/results/latencies_dev_gpu.json
 ```
 The SIGTERM-aware teardown in `synthetic_publisher.py` was added in the same pass to prevent `ExternalShutdownException` noise when processes are killed (e.g., by CI).
+
+### First on-robot measurement (2026-10-02)
+
+Not a table row: 10 detection cycles on one live 1280x720 GO2 front-camera
+frame (11 objects) after 2 warm-up cycles, Orin NX in MAXN, no thermal soak,
+backends called directly with the node's backend code. torch 2.8.0 (Jetson AI
+Lab, JetPack 6 / CUDA 12.6).
+
+| Config | Platform | Detector ms | Segmenter ms | Encoder ms | Total ms |
+|---|---|---|---|---|---|
+| YOLO-Worldv2-s + MobileSAM + OpenCLIP-B/16 | Orin NX, MAXN | 34.1 / 45.4 (median / max) | 572.7 / 624.6 | 511.1 / 627.3 | 1119 / 1237 |
+
+The segmenter and encoder are 15-25x slower than on dev-gpu, more than the
+GPU gap alone; why is not yet measured. Live, the detector node ran near
+1 Hz and the scene graph wrote its objects to JSON (see `docs/lab_run.md`).
+Object positions use nominal camera calibration and are not validated.
+
+## C++ / CUDA fusion compute on Jetson (2026-10-15)
+
+Three paired rounds compared the previous fusion implementation with the
+optimized C++ core and CUDA visibility backend. Each backend replayed the same
+50-frame diagnostic input 20 times per round, discarding five warmup frames
+per replay: 1,000 processed frames and 900 timed samples per backend per round.
+These are repeated samples from the readable prefix of an incomplete recording,
+not 1,000 independent captured frames. Backend and variant order were reversed
+in the second round. The baseline checkout was `5fced10`, containing the
+CPU/CUDA implementation introduced in `a33c366`.
+
+Each latency cell below is the median of three per-run P95 values, followed
+by their range in milliseconds. Samples were not pooled. Speedups divide the
+baseline P95 by the optimized P95 within each matched round.
+
+| Backend | Baseline P95 ms, median (range) | Optimized P95 ms, median (range) | Matched-round P95 speedup range |
+|---|---:|---:|---:|
+| C++ CPU | 31.231 (12.390-32.814) | 1.300 (0.980-3.395) | 9.20-33.49x |
+| CUDA, explicit copy | 1.265 (0.953-3.213) | 0.532 (0.390-1.228) | 2.38-2.62x |
+| CUDA, mapped pinned memory | 2.963 (0.923-3.791) | 2.110 (0.337-2.515) | 1.18-2.74x |
+
+The processes ran at nice priority 10 under changing concurrent stack load.
+The baseline CPU maximum reached 630 ms in one round. These observations do
+not establish isolated performance or real-time guarantees. Explicit-copy CUDA
+had the more consistent P95 behavior in these rounds and is selected by the
+optional [Jetson profile](ros2_ws/src/go2_fusion_cpp/config/fusion_jetson.yaml).
+The default profile remains CPU.
+
+Working storage fell by **3,686,400 bytes per backend**: CPU core storage from
+14,677,120 to 10,990,720 bytes; explicit-copy CUDA accelerator storage from
+12,859,200 to 9,172,800 bytes; mapped CUDA accelerator storage from 12,059,200
+to 8,372,800 bytes. CUDA modes retain a separate 3,612,800-byte CPU core.
+Driver contexts, allocator overhead and total process RSS are additional.
+
+Validation results:
+
+- Jetson Release CTest: 2/2 passed, including 15/15 CPU cases and 590,656
+  independent CUDA visibility-flag checks over sparse/dense inputs, borders,
+  margin boundaries, duplicates, resizing, extreme radii, empty input and
+  failure recovery.
+- Recorded replay parity: zero mismatches in 229,510 visibility comparisons
+  and 5,980 exact object-result comparisons per CUDA transfer mode. Explicit
+  accelerator allocations stayed fixed across 20,000 GPU calls per mode.
+- Local AddressSanitizer/UndefinedBehaviorSanitizer: 15/15 CPU cases passed.
+  Local CUDA memcheck and synccheck reported zero errors; racecheck reported
+  zero hazards.
+- Synthetic ROS adapter checks: 21/21 cases for each CPU, CUDA and mapped
+  CUDA locally; 21/21 for CUDA on Jetson, including rejection and timing gates.
+
+**Proof boundary:** these results measure fusion compute and tested numerical
+parity. The replay uses nominal camera geometry and synthetic trust to exercise
+association. It does not validate camera-LiDAR alignment, metric object
+positions, acquisition-clock calibration, detector performance, DDS delivery
+or full sensor-to-output latency. The 63 one-second telemetry samples peaked
+at 66.937 C junction temperature and 19.384 W board power. This short observation
+has no thermal-soak qualification or verified power-mode assumption and is
+separate from the sustained-throughput protocol below.
+
+Sanitized machine-readable evidence:
+[per-run timings](eval/results/fusion_jetson_20261015/paired_comparison.json),
+[summary, input hash and source hashes](eval/results/fusion_jetson_20261015/summary.json),
+and [parity and test summaries](eval/results/fusion_jetson_20261015/validation.json).
+The source recording is not distributed with these results. Implementation and
+reproduction commands are in [the fusion engine guide](docs/fusion_engine.md).
+
+## RGB-LiDAR calibration state and real-robot evidence (2026-10-13 to 2026-10-19)
+
+All rows are from the real GO2 front camera and LiDAR unless stated. Nothing here is a live, closed-loop run.
+
+| Quantity | State | Evidence |
+|---|---|---|
+| Intrinsics | **measured, PASS** | 301 checkerboard views, RMS 0.430 px (2026-10-15). fx 818.5, fy 820.4, cx 616.3, cy 393.4, k1 -0.413. The nominal file said fx = fy = 537, so every position computed with it is wrong. Now the default: `front_camera_intrinsics_measured_20261015.yaml`. |
+| LiDAR to tape, 2-D | measured, **not applied anywhere** | 8 pole captures: yaw -2.82 deg, translation (-0.136, +0.039) m, leave-one-out 0.013-0.077 m. One operator, one tape. |
+| Camera extrinsics | **candidate only** | Pole fit (below). Not a calibration: its registered held-out bar was not met, so the file stays `nominal: true` and the depth gate stays closed. |
+| Latency | not measured | No latency capture is on record. Image-to-cloud receipt offset was 16 ms median on the 10-13 bag; that is not exposure-to-output latency. |
+| Object position accuracy | **not measured** | No tape-measured chair or object has been compared with an estimate. |
+
+### Camera-LiDAR extrinsics from pole captures
+
+Pre-registered before the fit ran: [`docs/preregistration/pole-extrinsics.md`](docs/preregistration/pole-extrinsics.md),
+which also lists every deviation. Tool: `scripts/calib/extrinsics_from_poles.py`.
+Data: eight single-pole captures (C1-C8, 1.2-3.7 m, six standing, two lying) from 2026-10-15,
+the same captures behind the 2-D LiDAR fit.
+
+| Check | Result | Bar | Met |
+|---|---|---|---|
+| Restart agreement | 0.02 deg, 1 mm | 0.5 deg, 1 cm | yes |
+| Leave-one-pole-out, point to mask | 0.36-0.93 px | <= 4 px | yes |
+| Leave-one-pole-out, floor contact | 1.2-13.3 px (0.6-2.4 cm) | <= 8 px as registered; 4 cm after the deviation | **no** as registered (C2 10.6 px, C3 13.3 px); yes in metres |
+| Held-out S1-S5 acceptance (edge alignment) | 11.3-12.1 px on all five | <= 2.0 px | **no** |
+| Held-out S1-S5 acceptance (object range) | +0.18 to +0.23 m on S1, S2, S3, S5; S4 window artifact | <= 0.15 m | **no** |
+
+The pose differs from the nominal file by about -3.2 deg roll, +3.6 deg yaw and +11 cm height.
+
+Two findings change how the failures read:
+
+- **The edge-alignment check cannot discriminate in these scenes.** On S1 it is 11.3 px for the fitted pose and 11.8-12.5 px for the same pose rotated by 5 deg (yaw, pitch or roll) or 8 deg (yaw). Its failures, including the 10-15 desk failures, do not show the calibration is bad.
+- **Post-hoc, not registered:** on the orange cup stacks of S3 (1.1 m, robot lying) and S4 (2.5 m), neither in the fit, LiDAR returns on the cup land 0.30 and 0.46 px from the cup mask with the fitted pose and 22.8 and 31.2 px with the nominal pose. S5 gave only 41 cluster returns and is inconclusive. The range excess of +0.18-0.23 m is unexplained: the tape for S1-S5 may mark the object centre rather than its face.
+
+Decisive next test: fresh poles plus a tape-measured chair on the robot, scored with `extrinsics_from_poles.py --evaluate`
+(every pole <= 2 px and <= 4 cm; chair range within 0.15 m of tape to its visible surface).
+
+### First simultaneous camera and LiDAR bag (2026-10-13, nominal calibration)
+
+A 78 s bag (4.4 GB, camera, camera_info, LiDAR depth, `/go2/lidar/points`, `/utlidar/*`, TF, odom) was recorded
+while the GO2 was driven to a chair and back, then replayed offline through the repo detector and scene graph
+in an isolated ROS domain. YOLO-World found the chair in 24 of 24 sampled frames. Two 3D estimates agreed within
+about 0.15 m of each other. The scene graph held a persistent `chair` object, but also a false `television`, several
+duplicate chair objects, and a chair of 1.07 x 1.52 m. **Superseded as a position result:** it used the nominal
+intrinsics, so the 3D positions are not valid, and no tape measurement exists.
+
+#### Re-replay of the same bag, measured intrinsics (2026-10-19, desk, no robot)
+
+The bag was copied to the workstation (sha256 `4010705a2b5c...b7b8be`, matches the robot, SQLite integrity ok, 27,777
+messages) and replayed twice through `lidar_depth_node`, the detector and the scene graph at 0.5x speed (recorded
+depth, camera_info and static TF excluded; scene graph in the `odom` frame; one run each, same code at the same
+commit). Only the extrinsics differ.
+
+| | candidate extrinsics | nominal extrinsics |
+|---|---|---|
+| Detection messages | 255 | 262 |
+| Scene-graph objects | 22 | 31 |
+| Chair / television objects | 5 / 15 | 10 / 19 |
+| Main chair: observations, depth, size | 217, 2.06 m, 0.68 x 0.83 m | 127, 2.10 m, 0.67 x 0.85 m |
+
+- Valid LiDAR depth pixels per frame are the same for both (median about 56,500 vs 57,400, no empty frames), so the
+  difference is in where returns land, not coverage.
+- The 1.07 x 1.52 m chair is gone: the detector now sizes an object from depth-consistent mask pixels.
+- The candidate consolidates the main chair better (217 vs 127 observations, 5 vs 10 chair objects) but is far from
+  one chair, one object. Fifteen television objects remain, most under 0.3 m; a television appears 0.17 m from the
+  main chair. The false-television and duplicate-chair problems are NOT fixed.
+- No tape measurement, no run-to-run variance (one run each). A first candidate run was discarded: its detector
+  stopped producing detections after about 23 s while another process held the GPU; cause not confirmed. This is a
+  replay of recorded data, not a position-accuracy result and not an on-robot result.
 
 ## Sustained throughput at Jetson 25 W
 
@@ -61,6 +213,33 @@ Over 20 queries × 1 trial per config in `eval/queries.yaml` (dev-synthetic = bu
 **Note on dev top-1:** 0.00 is the correct result for the synthetic scene, bus.jpg contains only people, but the 20-query suite targets chairs, windows, tables, sofas. A 0 top-1 score for "chair" when no chair is physically in the scene is honest behavior, not a regression; the honesty metric is what's informative here. A real indoor rosbag is needed to measure meaningful top-1 / top-5.
 
 ## End-to-end navigation
+
+### Closed-loop simulation (2026-09-18)
+
+Not hardware evidence. `eval/sim_semantic_trials.py` drives text queries
+through the full deployment graph (`deploy.launch.py`): grounding ->
+NavigateToPose -> Nav2 (LiDAR SLAM localization) -> safety arbiter -> hardware
+bridge with the real Unitree Sport API adapter -> `go2_sim`, a kinematic GO2
+with the robot's DDS surface, measured robot-clock skew and a simulated L1
+LiDAR. Perception is a stand-in (`scripts/sim_scene_graph.py`: labelled world
+objects with embeddings at real image-to-text similarity levels), so these
+rows measure the grounding-to-actuation chain, not detection. Two-room world
+with a 1.0 m doorway; the refrigerator is in the room that starts unmapped.
+
+| Planner | Trials | Present objects reached (correct label, 0.5-1.5 m from surface) | Absent objects refused, no motion | Collisions | Stop distance from surface |
+|---|---|---|---|---|---|
+| Nav2 (`planner:=nav2`) | 3 | 15/15 | 9/9 | 0 | 0.75-1.28 m |
+| Straight-line adapter (`planner:=staged_nav`), open room | 2 | 4/4 | 2/2 | 0 | 0.79-0.96 m |
+
+The straight-line option has no planner and no obstacle avoidance, so it
+was run in an obstacle-free room; in the apartment it stops at the first
+obstacle on the straight line and holds.
+
+Base-stack goal trials (`ros2 run go2_sim closed_loop_trials`, same graph,
+fixed goals through both rooms): 60/60 goals over 12 fresh trials, 0
+collisions, arrival error median 0.19 m, p90 0.28 m.
+
+### On the robot
 
 Measured on GO2 EDU with `seeing-eye-dog` Nav2 downstream; ≥3 trials per query.
 
@@ -97,3 +276,40 @@ python3 eval/run_eval.py --mode rosbag --bag /data/indoor_a.bag \
 ```
 
 Pinned versions: see `requirements.txt` and `docker/{dev,jetson}.Dockerfile`. Hardware spec: this file. Power mode and thermal state: this file.
+
+
+## Semantic mapper integration (2026-10-15)
+
+The existing object-centric mapper now has an optional connection from validated
+C++/CUDA fusion output. It joins original semantic detections with fusion
+results at the exact image stamp and camera frame, preserves visual embeddings,
+and admits only valid fused positions. It never falls back to the detector's
+original 3D estimate. See [launch and interface contracts](docs/fusion_semantic_mapping.md).
+
+Correctness changes reject malformed geometry before mutating tracked objects
+and expire stale objects during graph publication, queries and snapshot export,
+even when detections stop. Directed spatial edges now mean
+“source relation target”; previously several directions were reversed. Grounding
+handles symmetric near/beside edges in either stored orientation. The on
+relation requires known extents and approximate surface contact; unknown zero
+extents cannot establish contact. This corrects relation behavior without
+changing the message schema.
+
+The local Python suite passed 241 tests, including 42 fusion adapter and launch
+checks. Package builds completed locally and on Jetson. Synthetic localhost
+ROS tests passed locally
+and on Jetson: the adapter accepted either input order, replaced deliberately
+incorrect detector centroids with fused positions, transformed positions into
+map, merged three observations into one object, published the graph, served a
+query, wrote JSON snapshots, and expired the object after input stopped. The
+archived JSON retained the expired object with live=false. These tests inject
+semantic and fusion messages; they do not run a live detector or establish
+physical mapping accuracy.
+
+The fused message supplies no object extents or camera depth, so these become
+explicit unknown zeros. Covariance is checked on admission but is not retained
+by the legacy semantic mapper. JSON snapshots are exports, not restart
+checkpoints. The mapper remains a Python reference implementation; the measured
+C++/CUDA optimization applies to fusion compute. Accurate live mapping still
+requires complete camera-LiDAR alignment, trustworthy acquisition timing,
+map-frame localization and held-out object-position measurements.

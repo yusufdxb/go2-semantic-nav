@@ -8,7 +8,9 @@ from go2_open_vocab_detector.depth_backproject import (
     mask_rle_decode,
     mask_rle_encode,
     masked_depth_median,
+    masked_extent_3d,
     object_centroid_3d,
+    rgbd_alignment_error,
 )
 
 
@@ -66,6 +68,43 @@ def test_object_centroid_3d_basic():
     assert dims[0] == pytest.approx(100 * 2.0 / 600.0, rel=1e-3)
 
 
+def test_object_dimensions_count_whole_pixels():
+    """Extent is measured edge-to-edge: an N-pixel-wide mask is N * depth / f wide.
+
+    Measuring centre-to-centre (max - min) would give a single-pixel mask zero
+    size and under-report every object by one pixel.
+    """
+    intr = _simple_intrinsics()
+    depth = np.full((intr.height, intr.width), 3000, dtype=np.uint16)  # 3 m
+    one_px = 3.0 / 600.0
+
+    single = np.zeros_like(depth, dtype=bool)
+    single[100, 200] = True
+    _, _, dims = object_centroid_3d(single, depth, intr)
+    assert dims[0] == pytest.approx(one_px, rel=1e-5)
+    assert dims[1] == pytest.approx(one_px, rel=1e-5)
+
+    rect = np.zeros_like(depth, dtype=bool)
+    rect[10:17, 50:62] = True  # 7 rows x 12 cols
+    _, _, dims = object_centroid_3d(rect, depth, intr)
+    assert dims[0] == pytest.approx(12 * one_px, rel=1e-5)
+    assert dims[1] == pytest.approx(7 * one_px, rel=1e-5)
+
+
+def test_rgbd_alignment_requires_same_frame_and_dimensions():
+    valid = dict(
+        color_frame="camera_color_optical_frame",
+        depth_frame="camera_color_optical_frame",
+        info_frame="camera_color_optical_frame",
+        color_shape=(480, 640),
+        depth_shape=(480, 640),
+        info_shape=(480, 640),
+    )
+    assert rgbd_alignment_error(**valid) is None
+    assert rgbd_alignment_error(**{**valid, "depth_frame": "camera_depth_optical_frame"})
+    assert rgbd_alignment_error(**{**valid, "depth_shape": (360, 640)})
+
+
 def test_rle_roundtrip_random_masks():
     rng = np.random.default_rng(42)
     for _ in range(10):
@@ -83,3 +122,38 @@ def test_rle_all_zeros_and_all_ones():
     for m in (mask_zeros, mask_ones):
         rle = mask_rle_encode(m)
         assert np.array_equal(mask_rle_decode(rle, m.shape[0], m.shape[1]), m)
+
+
+def test_masked_depth_median_requires_min_valid_pixels():
+    depth = np.zeros((10, 10), dtype=np.uint16)
+    depth[2, 2] = 1500  # one sparse return under the mask
+    mask = np.ones((10, 10), dtype=bool)
+    assert masked_depth_median(depth, mask) == pytest.approx(1.5)
+    assert np.isnan(masked_depth_median(depth, mask, min_valid_pixels=2))
+    depth[3, 3] = 1700
+    assert masked_depth_median(depth, mask, min_valid_pixels=2) == pytest.approx(1.6)
+    centroid, d, _ = object_centroid_3d(mask, depth, _simple_intrinsics(), min_valid_pixels=3)
+    assert np.isnan(d) and np.isnan(centroid).all()
+
+
+def test_masked_extent_ignores_far_wall_leakage():
+    intr = _simple_intrinsics()
+    depth = np.zeros((480, 640), dtype=np.uint16)
+    depth[200:260, 300:360] = 2000  # object, 2 m
+    depth[200:260, 360:440] = 6000  # wall leaked into the mask, 6 m
+    mask = np.zeros((480, 640), dtype=bool)
+    mask[200:260, 300:440] = True
+    dims = masked_extent_3d(mask, depth, intr, depth_m=2.0)
+    # 60 px wide at 2 m: 60 * 2 / 600 = 0.2 m, not the 140 px spread
+    assert dims[0] == pytest.approx(0.2, abs=0.01)
+    assert dims[1] == pytest.approx(0.2, abs=0.01)
+
+
+def test_masked_extent_falls_back_to_bbox_when_few_points():
+    intr = _simple_intrinsics()
+    depth = np.zeros((480, 640), dtype=np.uint16)
+    mask = np.zeros((480, 640), dtype=bool)
+    mask[100:110, 100:120] = True  # no valid depth at all
+    dims = masked_extent_3d(mask, depth, intr, depth_m=3.0)
+    assert dims[0] == pytest.approx(20 * 3.0 / 600.0)
+    assert dims[1] == pytest.approx(10 * 3.0 / 600.0)

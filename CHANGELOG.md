@@ -23,12 +23,23 @@ This project adheres roughly to [Keep a Changelog](https://keepachangelog.com/en
 - `.github/workflows/ci.yml`: ruff lint + msgs build + pure-Python unit smoke.
 - `CONTRIBUTING.md`, `RESULTS.md`, `docs/jetson_cookbook.md`, `docs/latency_instrumentation.md`, `docs/portfolio_notes.md`, `docs/paper_outline.md`, `docs/github_summary.md`.
 
+### Added (2026-10, RGB-LiDAR path on the real GO2)
+- `go2_rgb_lidar` (LiDAR-projected depth for the RGB-only GO2), `go2_front_camera_cpp` (native camera decode), `go2_fusion_cpp` (bounded C++/CUDA RGB-LiDAR fusion, Jetson results in `RESULTS.md`), optional fusion-to-scene-graph adapter (`docs/fusion_semantic_mapping.md`), one-command lab session (`scripts/lab/run_lab.sh`, `docs/lab_run.md`).
+- Measured front-camera intrinsics (`front_camera_intrinsics_measured_20261015.yaml`; 301 views, RMS 0.430 px). They are now the default. Focal length is 818 px, not the nominal 537 px, so every position computed with the nominal file is wrong.
+- `scripts/calib/extrinsics_from_poles.py` (+ `--evaluate`), a pre-registered pole-based extrinsics fit (`docs/preregistration/pole-extrinsics.md`), and a candidate extrinsics file that stays `nominal: true` because it did not pass its registered held-out bar.
+- Held-out surface-position accuracy evaluation (`scripts/fusion/evaluate_accuracy.py`).
+
+### Fixed
+- The detector's depth back-projection was a pinhole model and ignored the `camera_info` distortion. With the measured lens (k1 -0.413) an object 1.5-1.6 m off-axis at 3 m depth was placed about 0.17-0.18 m too close to the axis (0.03 m at 0.8 m off-axis). It now undoes plumb_bob distortion (`depth_backproject.py`, test in `go2_rgb_lidar/test/test_projection.py`). The fusion path was unaffected: it projects LiDAR forward through the distortion.
+
 ### Changed
 - Raised grounding score threshold from a single `>0.15` gate to a two-layer rejection (absolute + label/clip floor) after the v1 eval surfaced false positives where the pipeline happily matched "guitar" to "person" at score ~0.18.
 - `mobile_sam_segmenter.py` now resolves the checkpoint via a search path (`$checkpoint` arg → `~/.cache/mobile_sam/mobile_sam.pt` → cwd fallbacks) instead of requiring `mobile_sam.pt` in cwd.
 - Cosine-similarity helpers in grounding + scene-graph no longer add `1e-9` to norms, which was polluting identity cases (`cosine(a,a)` returned 0.999... instead of 1.0). Zero-division guards now use `< 1e-9` checks on raw norms.
 
 ### Discovered (honest findings to document in the paper)
+- The silhouette-edge alignment check (`extrinsics_from_capture.py`, `acceptance_from_capture.py`) cannot tell a good camera-LiDAR pose from one 5-8 degrees off on cluttered lab scenes (S1: 11.3 px fitted vs 11.8-12.5 px perturbed). Its 2026-10-15 failures say nothing about calibration quality.
+- Nominal intrinsics (fx 537) were 34 % off the measured value (fx 818). The 2026-10-13 chair estimate and the fusion benchmark replay geometry used the nominal file.
 - Synthetic-scene eval on bus.jpg shows raw scoring is noise-dominated when the detected class does not match the query class: all 16 non-relation queries returned "person" at scores 0.15-0.22 before the two-layer gate was added. This is a legitimate failure mode to report, not hide.
 - Ultralytics YOLO-World has a runtime dependency on OpenAI's `clip` that auto-installs via `uv pip install` at first inference. That installer can hang for minutes, pre-install manually in production deploys.
 - `pip install --force-reinstall <non-torch-pkg>` without `--extra-index-url https://download.pytorch.org/whl/cu128` silently overwrites the Blackwell-compatible torch wheel with a default CUDA-13 one. Documented in `CONTRIBUTING.md` and `docs/troubleshooting.md`.

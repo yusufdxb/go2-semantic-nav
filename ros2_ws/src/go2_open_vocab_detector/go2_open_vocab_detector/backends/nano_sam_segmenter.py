@@ -11,6 +11,7 @@ have the JetPack TRT bindings will see a clean ImportError at load() time.
 from __future__ import annotations
 
 import time
+from pathlib import Path
 
 import numpy as np
 
@@ -44,6 +45,11 @@ class NanoSamSegmenter(SegmenterBackend):
             "NANOSAM_DECODER_ENGINE",
             os.path.expanduser("~/nanosam/data/mobile_sam_mask_decoder.engine"),
         )
+        missing = [path for path in (encoder_engine, decoder_engine) if not Path(path).is_file()]
+        if missing:
+            raise FileNotFoundError(
+                "NanoSAM TensorRT engine file(s) missing: " + ", ".join(missing)
+            )
         self._predictor = Predictor(encoder_engine, decoder_engine)
         self._device = device
 

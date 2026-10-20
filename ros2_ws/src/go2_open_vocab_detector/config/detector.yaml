@@ -19,6 +19,8 @@ go2_open_vocab_detector:
     image_topic: /camera/color/image_raw
     depth_topic: /camera/depth/image_rect_raw
     camera_info_topic: /camera/color/camera_info
+    # Reject unregistered depth. Resizing depth is not geometric alignment.
+    require_aligned_depth: true
     sync_slop_sec: 0.05
 
     # Mask post-processing

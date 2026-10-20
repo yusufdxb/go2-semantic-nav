@@ -3,6 +3,7 @@
 All inputs are in the map frame. The "robot heading" parameter (optional) is used
 for viewpoint-dependent relations like left_of / right_of / in_front_of / behind.
 If heading is not provided, those relations are computed relative to the map +X axis.
+Directed edges read as "source relation target", for example source is above target.
 """
 
 from __future__ import annotations
@@ -35,8 +36,21 @@ def _robot_yaw_frame(heading_yaw: Optional[float]) -> tuple[np.ndarray, np.ndarr
 
 
 def _horizontal_offset(a: TrackedObject, b: TrackedObject) -> np.ndarray:
-    """Returns the 2D (x, y) offset from a to b."""
-    return (b.position_map[:2] - a.position_map[:2]).astype(np.float32)
+    """Return the horizontal position of subject a relative to reference b."""
+    return (a.position_map[:2] - b.position_map[:2]).astype(np.float32)
+
+
+def _on_score(subject: TrackedObject, reference: TrackedObject, params: RelationParams) -> float:
+    # Zero extents mean unknown geometry, as used by centroid-only fusion.
+    if not np.all(subject.dimensions > 0) or not np.all(reference.dimensions > 0):
+        return 0.0
+    dz = float(subject.position_map[2] - reference.position_map[2])
+    contact_height = float(subject.dimensions[2] + reference.dimensions[2]) / 2.0
+    offset = float(np.linalg.norm(_horizontal_offset(subject, reference)))
+    if (dz > 0 and abs(dz - contact_height) <= params.on_vertical_slack_m
+            and offset < (reference.dimensions[0] + reference.dimensions[1]) / 4.0 + 0.15):
+        return float(max(0.0, 1.0 - offset))
+    return 0.0
 
 
 def euclidean_distance(a: TrackedObject, b: TrackedObject) -> float:
@@ -70,7 +84,7 @@ def compute_edges(
                 continue
             off_xy = _horizontal_offset(a, b)
             off_xy_norm = float(np.linalg.norm(off_xy))
-            dz = float(b.position_map[2] - a.position_map[2])
+            dz = float(a.position_map[2] - b.position_map[2])
 
             # Near (undirected — emit as a→b only; downstream can densify)
             if dist <= p.near_threshold_m and i < j:
@@ -154,18 +168,16 @@ def compute_edges(
                     )
                 )
 
-            # On: a sits on b → a is slightly above b AND xy-close AND |dz| ~ b.dim.z/2
-            if (
-                0.0 < dz < p.on_vertical_slack_m + b.dimensions[2] / 2.0 + a.dimensions[2] / 2.0
-                and off_xy_norm < (b.dimensions[0] + b.dimensions[1]) / 4.0 + 0.15
-            ):
+            # Surface-contact heuristic requires known positive extents.
+            on_score = _on_score(a, b, p)
+            if on_score > 0:
                 edges.append(
                     dict(
                         source_id=a.object_id,
                         target_id=b.object_id,
                         relation_type="on",
                         distance_m=dist,
-                        relation_score=float(max(0.0, 1.0 - off_xy_norm)),
+                        relation_score=on_score,
                     )
                 )
 
@@ -190,10 +202,10 @@ def satisfies_relation(
     fwd, right = _robot_yaw_frame(heading_yaw)
     cone_cos = math.cos(math.radians(p.lateral_cone_deg))
 
-    off_xy = (reference.position_map[:2] - subject.position_map[:2]).astype(np.float32)
+    off_xy = _horizontal_offset(subject, reference)
     off_norm = float(np.linalg.norm(off_xy))
     dist = euclidean_distance(subject, reference)
-    dz = float(reference.position_map[2] - subject.position_map[2])
+    dz = float(subject.position_map[2] - reference.position_map[2])
 
     if relation in ("near", "beside"):
         return float(max(0.0, 1.0 - dist / p.near_threshold_m)) if dist <= p.near_threshold_m else 0.0
@@ -221,12 +233,7 @@ def satisfies_relation(
         return float(max(0.0, min(1.0, -dz / (p.vertical_threshold_m * 4.0))))
 
     if relation == "on":
-        if (
-            0.0 < dz < p.on_vertical_slack_m + reference.dimensions[2] / 2.0 + subject.dimensions[2] / 2.0
-            and off_norm < (reference.dimensions[0] + reference.dimensions[1]) / 4.0 + 0.15
-        ):
-            return float(max(0.0, 1.0 - off_norm))
-        return 0.0
+        return _on_score(subject, reference, p)
 
     # Unknown relation → no opinion
     return 0.5

@@ -1,6 +1,7 @@
 """Unit tests for SceneGraphStore."""
 
 import numpy as np
+import pytest
 from go2_scene_graph.graph_store import (
     AssociationParams,
     SceneGraphStore,
@@ -103,3 +104,39 @@ def test_cosine_similarity_edge_cases():
     assert abs(cosine_similarity(a, c) + 1.0) < 1e-6
     # mismatched shapes → 0
     assert cosine_similarity(a, np.array([1.0, 0.0])) == 0.0
+
+
+@pytest.mark.parametrize("field,value", [
+    ("position_map", [float("nan"), 0, 1]),
+    ("position_map", [0, 1]),
+    ("dimensions", [0.4, float("inf"), 1]),
+    ("dimensions", [0.4, -0.2, 1]),
+    ("embedding", [float("nan"), 0, 1]),
+    ("embedding", [0, 0, 0]),
+    ("embedding", [[1, 0], [0, 1]]),
+    ("score", float("nan")),
+    ("score", 1.1),
+    ("depth_median_m", -1.0),
+    ("depth_median_m", float("inf")),
+    ("stamp_ns", -1),
+])
+def test_invalid_observations_cannot_corrupt_existing_object(field, value):
+    store = SceneGraphStore()
+    observation = dict(label="chair", score=0.9, position_map=np.array([1., 0., 0.5]),
+                       dimensions=np.array([0.4, 0.4, 1.]), embedding=np.array([1., 0., 0.]),
+                       depth_median_m=2.0, stamp_ns=1)
+    oid, _ = store.ingest(**observation)
+    before = store.get(oid).position_map.copy()
+    with pytest.raises(ValueError):
+        store.ingest(**{**observation, field: value})
+    assert len(store) == 1
+    assert store.get(oid).observation_count == 1
+    np.testing.assert_array_equal(store.get(oid).position_map, before)
+
+
+def test_unknown_depth_and_dimensions_preserve_valid_centroid():
+    store = SceneGraphStore()
+    oid, is_new = store.ingest("chair", .9, np.array([1., 0., .5]), np.zeros(3),
+                               np.array([1., 0.]), 0., 1)
+    assert is_new and store.get(oid).last_depth_median_m == 0.
+    np.testing.assert_array_equal(store.get(oid).dimensions, np.zeros(3))

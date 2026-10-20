@@ -8,7 +8,7 @@
 
 Speak or type a natural-language target, *"go stand next to the red chair"*, *"move near the window"*, *"approach the table beside the couch"*, and the robot builds an open-vocabulary 3D scene graph online, grounds the query against it, computes a reachable goal pose, and hands off to the existing Nav2 stack for execution.
 
-This repository is a modular **overlay** on top of the [`GO2-seeing-eye-dog`](https://github.com/yusufdxb/GO2-seeing-eye-dog) autonomy stack. It does not replace any existing nodes; it subscribes to the RealSense camera topics, publishes `/goal_pose` in the `map` frame, and leaves Nav2, the gait controller, and the safety monitor untouched.
+This repository is a modular **overlay** intended to integrate with the [`GO2-seeing-eye-dog`](https://github.com/yusufdxb/GO2-seeing-eye-dog) autonomy stack. It does not replace any existing nodes. The semantic pipeline can be validated independently in dry-run mode. Motion requires a separately validated base stack that provides odometry, the `map -> odom -> base_link` TF chain, a current global costmap, and a consumer for `/goal_pose`.
 
 ---
 
@@ -25,8 +25,9 @@ Live 3DGS optimization with densification does not hit near-real-time on Jetson 
 
 - **Target hardware:** NVIDIA Jetson Orin NX 16 GB on Unitree GO2, plus Blackwell consumer GPU dev workstation.
 - **Target latency budget:** sensor to `/goal_pose` under 100 ms on Jetson at 25 W (dev-workstation pipeline runs at 68 ms total on the Blackwell consumer GPU; Jetson on-robot eval pending).
-- **Phase:** Phase 1, scaffold complete, dev-workstation eval landed, robot eval pending.
-- **Eval state:** dev numbers in [`RESULTS.md`](RESULTS.md); on-robot eval not yet run.
+- **Phase:** object-centric semantic mapping, RGB-LiDAR input support and bounded C++/CUDA fusion implemented. An optional adapter connects validated fusion positions to the mapper; recorded-input fusion and synthetic ROS integration are tested on Jetson. Real GO2 camera and LiDAR data have been recorded and replayed offline (2026-10-13); nothing has run live end to end.
+- **Calibration:** front-camera **intrinsics are measured** (2026-10-15, RMS 0.430 px, now the default). **Extrinsics are not**: a pole-based fit exists as a candidate but missed its pre-registered held-out bar, so the depth gate stays closed. See [calibration state](RESULTS.md#rgb-lidar-calibration-state-and-real-robot-evidence-2026-10-13-to-2026-10-19).
+- **Eval state:** measured compute results in [`RESULTS.md`](RESULTS.md), including the [Jetson fusion comparison](RESULTS.md#c--cuda-fusion-compute-on-jetson-2026-10-15). Metric position accuracy, latency, sustained detector-plus-fusion operation and real semantic navigation remain unvalidated.
 
 ```mermaid
 flowchart TD
@@ -42,7 +43,7 @@ flowchart TD
     GR --> NAV2
 ```
 
-Five ROS 2 packages (four Python, one CMake/IDL):
+Eight ROS 2 packages (five Python, two C++, one CMake/IDL):
 
 | Package | Role |
 |---|---|
@@ -51,34 +52,55 @@ Five ROS 2 packages (four Python, one CMake/IDL):
 | `go2_scene_graph` | Online 3D object-centric scene graph in `map` frame with spatial relations |
 | `go2_language_grounding` | Text query, chosen object, reachable `PoseStamped` on `/goal_pose`; exposes an action server |
 | `go2_semantic_bringup` | Launch orchestration, RViz preset, composite configs |
+| `go2_rgb_lidar` | Camera-LiDAR depth projection and calibration gates |
+| `go2_front_camera_cpp` | Native front-camera capture and decoding |
+| `go2_fusion_cpp` | Bounded CPU/CUDA fusion and validated position messages |
 
-Source tree under `ros2_ws/src/` matches this table 1:1.
+Source packages are under `ros2_ws/src/`.
+
+The object mapper merges observations using 3D proximity and visual embeddings, publishes spatial edges and RViz markers, and exports JSON snapshots. The [validated fusion mapping guide](docs/fusion_semantic_mapping.md) describes the optional connection from fused positions to that mapper. Snapshots export state; they do not restore tracking across restarts.
+
+An additive C++17 RGB-LiDAR fusion core, isolated ROS 2 adapter, and optional benchmark-gated CUDA visibility backend are documented in [the fusion engine guide](docs/fusion_engine.md). Calibration and timestamp trust are required before publishing valid positions; offline compute benchmarks do not establish deployment readiness.
+
+Three paired Jetson replay rounds under changing concurrent load measured a
+2.38-2.62x CUDA P95 speedup and a 9.20-33.49x CPU P95 speedup after sparse
+visibility optimization, with 3.69 MB less working storage per backend.
+The workload repeats 50 recorded frames; these results measure fusion compute
+and numerical parity, not detector throughput or calibrated localization. The
+replay used the nominal intrinsics (fx 537; the measured value is 818), which
+does not change the timing comparison but means its object positions are not
+physical.
+See [measurements and reproducibility](RESULTS.md#c--cuda-fusion-compute-on-jetson-2026-10-15).
 
 ### What each package actually does
 
-- **RealSense D435i (GO2) inputs:**
+- **Aligned RGB-D camera inputs (topic names are configurable):**
   - `/camera/color/image_raw`
   - `/camera/depth/image_rect_raw`
   - `/camera/color/camera_info`
-- **`go2_open_vocab_detector` (rclpy lifecycle):**
+- **`go2_rgb_lidar` (rclpy nodes), for the stock GO2, which has no depth camera:**
+  - front camera driver (C++ `go2_front_camera_cpp`, Python fallback): RTP H.264 multicast to `/camera/front/image_raw`, stamped at packet arrival
+  - LiDAR projected into the camera as an aligned sparse depth image (`/camera/front/lidar_depth` + `camera_info`), with a visibility filter for returns hidden behind nearer ones
+  - withholds depth until the camera is calibrated ([`docs/rgb_lidar_calibration.md`](docs/rgb_lidar_calibration.md))
+- **`go2_open_vocab_detector` (rclpy node):**
   - YOLO-World v2 / YOLOE for open-vocab boxes
   - MobileSAM / NanoSAM for mask per box
   - OpenCLIP / MobileCLIP for per-object embed
   - depth back-projection for 3D centroid
   - publishes `/semantic/detections`
-- **`go2_scene_graph` (rclpy lifecycle):**
+- **`go2_scene_graph` (rclpy node):**
   - TF from `camera_color_optical_frame` to `map`
   - data-association and merge across frames
   - publishes `/semantic/scene_graph`
   - publishes `/semantic/object_markers` (RViz)
   - serves `/semantic/query_objects`
-- **`go2_language_grounding` (rclpy lifecycle):**
+- **`go2_language_grounding` (rclpy node):**
   - query parser plus CLIP text encode
   - spatial relation resolver
   - costmap-aware stand-off goal sampling
   - action `/semantic/ground_and_navigate`
-  - publishes `/goal_pose` to Nav2
-- **existing Nav2 + `go2_gait_controller`:** unchanged, lives in the [`GO2-seeing-eye-dog`](https://github.com/yusufdxb/GO2-seeing-eye-dog) overlay.
+  - publishes `/goal_pose` only when `allow_goal_publication` is explicitly enabled
+- **base navigation:** external dependency. It is not started or validated by this repository.
 
 ---
 
@@ -154,9 +176,9 @@ The latency profiler reads timestamps stamped into `SemanticDetectionArray.laten
 - **ROS 2 Humble** with `nav2_bringup`
 - **Python 3.10** (matches JetPack 6.x)
 - **PyTorch 2.x with CUDA 12.x** (tested with `torch==2.11.0+cu128` on the Blackwell consumer GPU)
-- **RealSense camera** publishing on `/camera/...` (same namespace as `go2_perception`)
+- **A depth source:** either an RGB-D camera publishing aligned depth on `/camera/...`, or the GO2 front camera plus its LiDAR through `go2_rgb_lidar` (the default in `deploy.launch.py`, `camera:=rgb_lidar`)
 - **TF tree** with `map -> odom -> base_link -> camera_color_optical_frame`
-- **For deployment:** a running `GO2-seeing-eye-dog` overlay so Nav2 is up
+- **For motion:** a proven base navigation stack with odometry, TF, localization or mapping, a global costmap, and `/goal_pose` handling
 
 Install Python ML deps into the colcon workspace venv:
 
@@ -168,7 +190,7 @@ pip install -r requirements.txt
 
 ```bash
 cd ros2_ws
-colcon build --symlink-install
+colcon build --symlink-install --cmake-args -DGO2_FUSION_ROS=ON
 source install/setup.bash
 ```
 
@@ -190,30 +212,40 @@ ros2 action send_goal /semantic/ground_and_navigate \
     --feedback
 ```
 
-`dry_run: true` computes and returns the goal pose without publishing to Nav2. Drop it to trigger navigation.
+`dry_run: true` computes and returns the goal pose without publishing it. Non-dry-run requests are rejected by default. Enable `allow_goal_publication:=true` only after the base navigation and stop path have passed their own hardware checks.
 
 ## Documentation
 
 | Doc | What it covers |
 |---|---|
+| [`docs/fusion_engine.md`](docs/fusion_engine.md) | C++/CUDA fusion core, adapter, benchmarks and reproduction commands |
+| [`docs/preregistration/`](docs/preregistration/) | Claims, arms, bars and kill criteria written before the data: NVDEC clock A/B (not run) and pole-based extrinsics (run, bar not met) |
+| [`docs/fusion_semantic_mapping.md`](docs/fusion_semantic_mapping.md) | Validated fusion-to-mapper interface, launch options and limits |
 | [`docs/architecture.md`](docs/architecture.md) | Component design, data flow, interface contracts, known constraints |
 | [`docs/system_diagram.md`](docs/system_diagram.md) | Full ROS graph, backend plug points, goal-generation flow, topic + QoS contract |
 | [`docs/deployment.md`](docs/deployment.md) | Jetson install, TensorRT export, launch on the robot |
 | [`docs/demo.md`](docs/demo.md) | Operator procedure for a live demo run |
+| [`docs/rgb_lidar_calibration.md`](docs/rgb_lidar_calibration.md) | RGB-only GO2: LiDAR-projected depth, camera calibration, what is verified |
+| [`docs/lab_run.md`](docs/lab_run.md) | One-command robot session: deploy, health/latency probe, captures; calibration runs offline |
 | [`docs/experiments.md`](docs/experiments.md) | Eval suite, metrics, how to reproduce reported numbers |
 | [`docs/jetson_cookbook.md`](docs/jetson_cookbook.md) | Jetson-specific install and runtime notes |
 | [`docs/latency_instrumentation.md`](docs/latency_instrumentation.md) | How per-stage timings are captured and aggregated |
 | [`docs/troubleshooting.md`](docs/troubleshooting.md) | Common failure modes and fixes |
 | [`RESULTS.md`](RESULTS.md) | Measured numbers per platform (dev + Jetson when available) |
 | [`CHANGELOG.md`](CHANGELOG.md) | Per-release changes and discovered failure modes |
-| [`AGENTS.md`](AGENTS.md) | Rules for agents working in this repo |
 
 ## Project status
 
-**Phase 1: scaffold complete, dev-workstation eval landed, robot eval pending.**
+**Phase 1: scaffold complete, dev-workstation eval landed, first on-robot run with the robot standing still.**
 
 What is done:
-- 5 ROS 2 packages build clean; lifecycle nodes wired end to end.
+- Eight ROS 2 packages are implemented. The optional fusion-to-mapper path passes synthetic ROS tests locally and on Jetson, including TF, association, graph publication, query, snapshots and stale-object expiry.
+- RGB-only GO2 support (`go2_rgb_lidar`): a real GO2 camera frame with a synthetic LiDAR scene runs through the real detector with correct 3D depth (`scripts/smoke_rgb_lidar.py`).
+- On the robot, standing still (2026-10-02, [`docs/lab_run.md`](docs/lab_run.md)): camera 14.3 fps with arrival->publish p50 about 18 ms (p95 19.5 ms before the detector was added, marginal around 25 ms with it), LiDAR depth 4.5 Hz, slam_toolbox map saved to disk, detector + scene graph live on the Orin NX GPU writing the object map to JSON. That run used nominal calibration.
+- First simultaneous camera and LiDAR bag on the GO2 (2026-10-13, 78 s, driven to a chair): YOLO-World found the chair in 24 of 24 sampled frames and the repo scene graph kept a persistent chair object when the bag was replayed offline. Nominal calibration, no tape measurement, a false television and duplicate chairs in the graph: a plumbing check, not a position result ([`RESULTS.md`](RESULTS.md#first-simultaneous-camera-and-lidar-bag-2026-10-13-nominal-calibration)).
+- Front-camera intrinsics measured on the robot (2026-10-15): 301 views, RMS 0.430 px, focal length 818 px against the nominal 537 px. Committed and made the default.
+- Detector back-projection now undoes lens distortion. It was pinhole-only, which with the measured lens put an object 1.5 m off-axis at 3 m depth about 0.17 m off (unit test against the depth node's own projection; not yet exercised on the robot).
+- Camera-LiDAR extrinsics: a new pole-based fit ([`scripts/calib/extrinsics_from_poles.py`](scripts/calib/README.md), pre-registered in [`docs/preregistration/pole-extrinsics.md`](docs/preregistration/pole-extrinsics.md)) is stable and sub-pixel on held-out poles and on two never-fitted cup scenes, but missed its registered held-out bar. It ships as a `nominal: true` candidate. The older edge-alignment acceptance check was shown unable to separate a good pose from one 5-8 degrees wrong on these scenes.
 - 9 detector backends, 4 segmenters, 3 encoder families pluggable through `factory.py` (see [`CHANGELOG.md`](CHANGELOG.md)).
 - Two-layer grounding rejection (absolute floor + label/clip floor) replaces the v1 single-threshold gate after the synthetic-scene false-positive failure mode (documented in [`RESULTS.md`](RESULTS.md)).
 - Latency profiler + thermal benchmark + rosbag-backed eval harness in place.
@@ -221,16 +253,22 @@ What is done:
 - CI: ruff lint + msgs build + pure-Python unit smoke.
 
 What is **not** done:
-- Robot-side eval on Jetson Orin NX (25 W and 15 W rows in [`RESULTS.md`](RESULTS.md) are still `<...>` placeholders).
+- A validated camera-to-LiDAR extrinsic and acquisition latency. Intrinsics are measured; the extrinsic is a candidate; latency has no capture on record. One short on-robot session (fresh poles plus a tape-measured chair, `extrinsics_from_poles.py --evaluate`) is the decisive test. Trust gates stay closed and live object positions are not certified until then.
+- Any metric position accuracy: no estimate has been compared with a tape-measured object.
+- Robot-side eval on Jetson Orin NX (the ≥1000-frame 25 W and 15 W rows in [`RESULTS.md`](RESULTS.md) are still `<...>` placeholders; only a first 10-cycle measurement exists).
 - Real indoor rosbag suite. Current grounding numbers are on a synthetic single-image scene (`bus.jpg`), useful only as a sanity / honesty signal.
 - Navigation success rate (SR) and SPL: harness exists, numbers not yet captured.
+- Motored navigation integration. The sibling stack must first prove odometry, robot TF, localization or mapping, global costmap publication, goal handling, and emergency stop behavior.
 - Margin-based grounding gate. Deferred to Phase 5 post-rosbag eval; the current two-layer gate still lets one out-of-vocab query slip through (see [`RESULTS.md`](RESULTS.md) "Discovered" entry).
 
-See [`NEXT_STEPS.md`](NEXT_STEPS.md) for the ordered Phase 1, 5 checklist with time estimates.
+The safe next milestone is a motors-disabled RGB-D and dry-run grounding session. See the deployment cookbook for the evidence checklist.
 
 ## Known limitations
 
-- **No on-robot numbers yet.** Every Jetson row in [`RESULTS.md`](RESULTS.md) is a placeholder. The dev-workstation 68 ms / 14.7 Hz upper bound on the Blackwell consumer GPU will **not** transfer 1:1 to Orin NX at 25 W; expect significantly lower sustained throughput.
+- **Anything computed with the nominal intrinsics is not physical.** The nominal file assumed fx = 537 px; the measured value is 818 px. That includes the 2026-10-13 chair estimate and the object positions in the fusion replay. Timing results are unaffected.
+- **The edge-alignment acceptance check has no power on cluttered scenes** (`scripts/calib/acceptance_from_capture.py`): 11.3 px for the fitted pose, 11.8-12.5 px for 5-8 degree errors. Use the pole or object-mask check.
+- **Detector is slow on the robot.** First on-robot numbers: about 1.1 s per detection cycle on the Orin NX (MobileSAM 573 ms + OpenCLIP 511 ms with 11 objects), so near 1 Hz against the dev-workstation 68 ms. NanoSAM / MobileCLIP or TensorRT are the planned fixes; none is measured on the robot yet.
+- **Camera decode is the largest latency stage.** Of the camera's ~18 ms arrival->publish (p50), roughly 10 ms is the hardware H.264 decoder, whose clock sat at its floor during the run; colour conversion adds ~6 ms ([`docs/lab_run.md`](docs/lab_run.md)).
 - **Ultralytics YOLO-World** auto-installs OpenAI's `clip` package on first inference and can hang for minutes. Pre-install manually in production deploys ([`docs/troubleshooting.md`](docs/troubleshooting.md)).
 - **Torch wheel pinning** is fragile on Blackwell GPUs: any `pip install --force-reinstall` without `--extra-index-url https://download.pytorch.org/whl/cu128` will replace the cu128 wheel with the default CUDA-13 one and break the detector.
 - **Closed-vocab fallback (YOLO baseline)** is intentionally not implemented; the comparison story is against ConceptGraphs / VLMaps style baselines, not detection-only.

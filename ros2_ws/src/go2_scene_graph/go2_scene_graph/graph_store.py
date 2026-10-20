@@ -105,10 +105,27 @@ class SceneGraphStore:
 
         Returns (object_id, is_new).
         """
-        if embedding.size == 0:
-            raise ValueError("ingest: embedding must be non-empty")
+        position_map = np.asarray(position_map, dtype=np.float32)
+        dimensions = np.asarray(dimensions, dtype=np.float32)
+        embedding = np.asarray(embedding, dtype=np.float32)
+        if position_map.shape != (3,) or not np.isfinite(position_map).all():
+            raise ValueError("ingest: position must be a finite 3-vector")
+        if dimensions.shape != (3,) or not np.isfinite(dimensions).all() or np.any(dimensions < 0):
+            raise ValueError("ingest: dimensions must be a finite nonnegative 3-vector")
+        if embedding.ndim != 1 or embedding.size == 0 or not np.isfinite(embedding).all():
+            raise ValueError("ingest: embedding must be a finite non-empty vector")
+        if not math.isfinite(score) or not 0 <= score <= 1:
+            raise ValueError("ingest: score must be finite and in [0, 1]")
+        # Zero denotes an unavailable depth for already transformed centroids.
+        if not math.isfinite(depth_median_m) or depth_median_m < 0:
+            raise ValueError("ingest: depth must be finite and nonnegative")
+        if stamp_ns < 0:
+            raise ValueError("ingest: timestamp must be nonnegative")
         # L2-normalize defensively
-        norm = np.linalg.norm(embedding) + 1e-9
+        norm = float(np.linalg.norm(embedding))
+        if not math.isfinite(norm) or norm < 1e-9:
+            raise ValueError("ingest: embedding norm must be finite and nonzero")
+        norm += 1e-9
         embedding = (embedding / norm).astype(np.float32)
 
         match_id = self._find_best_match(label, position_map, embedding)
